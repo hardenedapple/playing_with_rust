@@ -1,0 +1,6 @@
+[package]
+name = "knapsack_problem"
+version = "0.1.0"
+authors = ["hardenedapple <hardenedapple@server.fake>"]
+
+[dependencies]
