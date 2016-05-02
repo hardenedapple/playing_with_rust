@@ -218,7 +218,7 @@ mod tests {
                 return Vec::new();
             }
 
-            let length: usize = rand::random::<usize>() % max_length;
+            let length: usize = rand::random::<usize>() % (max_length + 1);
             let mut retval: Vec<T> = Vec::with_capacity(length);
             let mut rng = rand::thread_rng();
             for _ in 0..length {
