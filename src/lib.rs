@@ -8,6 +8,12 @@
  *
  *          Testing the VectorPermutations stuff should be reasonably straightforward for small
  *          vectors, but I'd like to push the test as far forward as possible.
+ *              To start with, (just to add some confidence -- it doesn't really proove anything)
+ *              is to iterate through all permutations asserting that they aren't equal to the
+ *              original one.
+ *
+ *              After that we'll need something more complex for more assurances.
+ *
  *              First guess:
  *                  Test that there are no duplicates in any permutation of [1, 2, 3, 4]
  *                  Ensure that each element is in each position (N-1)! times
@@ -29,6 +35,7 @@
  * vimcmd: set makeprg=cargo\ test
  * vimcmd: !cargo test -- --ignored
  */
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Item {
     weight: u32,
@@ -147,10 +154,6 @@ mod tests {
     use self::rand::Rng;
     const MAX_VECTOR_SIZE: usize = 30;
     const MAX_PERMUTATION_SIZE: usize = 10;
-
-    #[test]
-    fn it_works() {
-    }
 
     #[test]
     fn handles_base_case() {
@@ -297,6 +300,7 @@ mod tests {
     #[ignore]
     fn order_insensitive() {
         let item_options: Vec<Item> = random_vector(MAX_PERMUTATION_SIZE);
+        println!("Original vector: {:?}", item_options);
         let mut permutations = VectorPermutations::from_vec(item_options);
         let knapsack_capacity = rand::random();
         let first_solution: KnapsackSolution;
