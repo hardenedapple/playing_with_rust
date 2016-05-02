@@ -29,17 +29,16 @@ pub fn vector_same_set<T: PartialEq + Clone>(left: &Vec<T>, right: &Vec<T>)
         return false;
     }
 
-    let mut temp_left = left.to_vec();
     let mut temp_right = right.to_vec();
 
-    for item in temp_left.drain(..) {
+    for item in left {
         let mut found_item = false;
         // This initialisation is not required for the consistency of the program
         // It's just here to make the compiler happy.
         // I expect that's an indication bad style, but I'll worry about that later.
         let mut position = 0;
         for (index, value) in temp_right.iter().enumerate() {
-            if *value == item { found_item = true; position = index; break; }
+            if *value == *item { found_item = true; position = index; break; }
         }
 
         if found_item {
