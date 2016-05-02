@@ -288,11 +288,12 @@ mod tests {
 
     #[test]
     fn set_comparison() {
-        let mut left: Vec<bool> = random_vector(MAX_VECTOR_SIZE);
-        let vector_length = left.len();
-        let mut right = left.clone();
-        if vector_length != 0 {
-            right[rand::random::<usize>() % vector_length] = rand::random::<bool>();
+        let mut left: Vec<u32> = random_vector(MAX_VECTOR_SIZE);
+        let mut right: Vec<u32>;
+        if rand::random::<bool>() {
+            right = left.clone();
+        } else {
+            right = random_vector(MAX_VECTOR_SIZE);
         }
         println!("Original Vectors:\n\t{:?}\n\t{:?}", left, right);
         let originally_same = vector_same_set(&mut left, &mut right);
