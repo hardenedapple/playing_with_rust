@@ -118,17 +118,18 @@ pub fn best_knapsack(mut problem: KnapsackProblem)
 
     let test_item = problem.options.pop().unwrap();
     let other_items = problem.options.clone();
+    let cur_capacity = problem.capacity;
 
-    let without_item = best_knapsack( KnapsackProblem { .. problem }).unwrap();
+    let without_item = best_knapsack(problem).unwrap();
 
-    if problem.capacity < test_item.weight {
+    if cur_capacity < test_item.weight {
         Ok(without_item)
     } else {
         match best_knapsack(KnapsackProblem {
-            capacity: problem.capacity - test_item.weight,
+            capacity: cur_capacity - test_item.weight,
             options: other_items,
         }) {
-            /* TODO -- Question, what should be done in case of integer overflow? */
+            /* TODO -- Question: what should be done in case of integer overflow? */
             Ok(mut solution) =>
                 if (solution.value + test_item.value) > without_item.value {
                     solution.weight += test_item.weight;
