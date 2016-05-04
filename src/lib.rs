@@ -1,6 +1,7 @@
 /*
  * TODO Documentation tests -- see here
  *      https://doc.rust-lang.org/book/testing.html#documentation-tests
+ *  Write for vector_same_set() and best_knapsack() functions.
 
  * vimcmd: set makeprg=cargo\ test
  * vimcmd: !cargo test -- --ignored

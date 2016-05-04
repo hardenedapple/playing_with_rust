@@ -151,10 +151,22 @@ fn same_permutations() {
 }
 
 #[test]
+#[ignore]
 fn random_vector_good_size() {
-    for i in 0..20 {
-        for _ in 0..2000 {
-            assert!((random_vector(i) as Vec<u32>).len() <= i);
+    // TODO -- make sure that we print this message out if someone kills the process.
+    println!("Just to note -- this function could go on forever.\n\
+              It's really unlikely to though, so I feel justified including it.\n\
+              If it doesn't finish ^C will stop it, and you should find this message.");
+    for i in 0..500 {
+        let mut found_size = vec![false; i + 1];
+        loop {
+            // Could technically go on forever.
+            // Is unlikely to do so
+            let current_vector: Vec<u32> = random_vector(i);
+            let cur_len = current_vector.len();
+            assert!(cur_len <= i);
+            found_size[cur_len] = true;
+            if found_size == vec![true; i + 1] { break; };
         }
     }
 }

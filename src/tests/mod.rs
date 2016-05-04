@@ -153,6 +153,10 @@ fn same_result_each_time() {
 #[test]
 #[ignore]
 fn order_insensitive() {
+    /*
+     * NOTE -- this once took over 15 min before I gave up -- figure out the maximum running time
+     * of this function and get it under control.
+     */
     let item_options: Vec<Item> = random_vector(MAX_PERMUTATION_SIZE);
     println!("Original vector: {:?}", item_options);
     let mut permutations = VectorPermutations::from_vec(item_options);
