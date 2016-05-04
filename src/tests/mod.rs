@@ -213,3 +213,4 @@ fn set_check_permutation_independent() {
     }
 }
 
+mod recursivetests;
