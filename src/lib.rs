@@ -28,28 +28,26 @@ pub struct KnapsackSolution {
     items: Vec<Item>,
 }
 
-fn vector_same_set<T: PartialEq + Clone>(left: &Vec<T>, right: &Vec<T>)
+fn vector_same_set<T: PartialEq>(left: &Vec<T>, right: &Vec<T>)
     -> bool {
 
     if left.len() != right.len() {
         return false;
     }
 
-    let mut temp_right = right.to_vec();
+    let mut marker = vec![0; left.len()];
 
     for item in left {
         let mut found_item = false;
-        // This initialisation is not required for the consistency of the program
-        // It's just here to make the compiler happy.
-        // I expect that's an indication bad style, but I'll worry about that later.
-        let mut position = 0;
-        for (index, value) in temp_right.iter().enumerate() {
-            if *value == *item { found_item = true; position = index; break; }
+        for (index, value) in right.iter().enumerate() {
+            if *value == *item && marker[index] == 0 {
+                found_item = true;
+                marker[index] = 1;
+                break;
+            }
         }
 
-        if found_item {
-            temp_right.swap_remove(position);
-        } else {
+        if !found_item {
             return false;
         }
     }
