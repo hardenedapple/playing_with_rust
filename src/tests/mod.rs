@@ -133,6 +133,19 @@ fn handles_simple() {
 }
 
 #[test]
+fn ignores_valueless() {
+    let knapsack_problem = KnapsackProblem {
+        capacity: 10,
+        options: vec![ Item { weight: 1, value: 0 } ],
+    };
+    let knapsack_solution = best_knapsack(knapsack_problem).unwrap();
+    let correct_solution = KnapsackSolution {
+        weight: 0, value: 0, capacity: 10, items: Vec::new(),
+    };
+    assert_eq!(knapsack_solution, correct_solution);
+}
+
+#[test]
 fn same_result_each_time() {
     let rand_vec = random_vector(rand::random::<usize>() %
                                            MAX_VECTOR_SIZE);
