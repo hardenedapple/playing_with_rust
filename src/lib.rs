@@ -1,31 +1,46 @@
 /*
- * TODO Documentation tests -- see here
- *      https://doc.rust-lang.org/book/testing.html#documentation-tests
- *  Write for vector_same_set() and best_knapsack() functions.
+ * TODO Figure out how to enable experimental features.
+ *      I want to only execute a line of code if I'm compiling for testing.
 
  * vimcmd: set makeprg=cargo\ test
  * vimcmd: !cargo test -- --ignored
  * vimcmd: !cargo test
  */
 
+/// The `Item` type -- represents one option to keep in the knapsack.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Item {
-    weight: u32,
-    value: u32,
+    /// weight of the item, which limits what can be stored in the knapsack.
+    pub weight: u32,
+    /// value of the item, which decides our preference.
+    pub value: u32,
 }
 
+/// The `KnapsackProblem` type -- represents the initial problem.
 #[derive(Debug, Clone)]
 pub struct KnapsackProblem {
-    capacity: u32,
-    options: Vec<Item>,
+    /// capacity of the knapsack -- how much the sum of Items.weight can reach.
+    pub capacity: u32,
+    /// options -- the list of items that we have available for carrying.
+    pub options: Vec<Item>,
 }
 
+/// The `KnapsackSolution` type -- represents a filling of the knapsack.
 #[derive(Debug)]
 pub struct KnapsackSolution {
-    weight: u32,
-    capacity: u32,
-    value: u32,
-    items: Vec<Item>,
+    /// weight of the knapsack -- sum of all Item.weight in items.
+    /// this has no real purpose, it's just more conveniant to access a member than sum the
+    /// items.weight values up.
+    pub weight: u32,
+    /// The remaining capacity in the knapsack -- the size of the knapsack originally minus the
+    /// sum of items.weights.
+    pub capacity: u32,
+    /// The value of this knapsack -- the sum of items.value.
+    /// Again, this is just for conveniance, as the information is already stored in the items
+    /// vector.
+    pub value: u32,
+    /// The list of items stored in the knapsack in this solution.
+    pub items: Vec<Item>,
 }
 
 fn vector_same_set<T: PartialEq>(left: &Vec<T>, right: &Vec<T>)
@@ -52,11 +67,26 @@ fn vector_same_set<T: PartialEq>(left: &Vec<T>, right: &Vec<T>)
         }
     }
 
+    #[cfg(test)]
+    assert!(marker.iter().all(| value: &u32 | { *value == 1 }));
+
     return true;
 }
 
 /* Allow access to vector_same_set() from inside the test module. */
 #[cfg(test)]
+/// Compares the elements of two vectors.
+///
+/// vector_same_set() function takes two vectors of the same type that implements PartialEq and
+/// returns true if they both have the same elements in them (ignoring the order).
+///
+/// ```
+/// use knapsack_problem::vector_same_set_test;
+///
+/// assert!(vector_same_set_test(&vec![0, 1, 2], &vec![2, 0, 1]));
+/// assert!(!vector_same_set_test(&vec![1, 1, 2], &vec![2, 1]));
+/// assert!(!vector_same_set_test(&vec![0, 1, 2], &vec![3, 1, 2]));
+/// ```
 pub fn vector_same_set_test<T: PartialEq + Clone>(left: &Vec<T>, right: &Vec<T>)
     -> bool {
     vector_same_set(left, right)
@@ -74,6 +104,23 @@ impl PartialEq for KnapsackSolution {
 
 impl Eq for KnapsackSolution {}
 
+/// Returns an optimal solution to the KnapsackProblem
+///
+/// ```
+/// use knapsack_problem::{best_knapsack, KnapsackProblem, KnapsackSolution, Item};
+///
+/// assert_eq!(best_knapsack( KnapsackProblem {
+///                               capacity: 3,
+///                               options: vec![Item { weight: 10, value: 100 },
+///                                             Item { weight: 1,  value: 1 }],
+///                           } ).unwrap(),
+///             KnapsackSolution {
+///                 weight:   1,
+///                 capacity: 2,
+///                 value:    1,
+///                 items:    vec![Item { weight: 1,  value: 1 }],
+///             });
+/// ```
 pub fn best_knapsack(mut problem: KnapsackProblem)
     -> Result<KnapsackSolution, Vec<Item>> {
 
