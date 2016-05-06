@@ -10,13 +10,27 @@
  */
 use super::*;
 
+/*
+ * Because each new permutation is reached on the innermost recursive call, that call must have all
+ * the information needed to make the callback.
+ *
+ * This means it must have a slice matching the entire vector passed in.
+ *
+ * Given this, in order for the recursive calls to know their depth, and how far in to the stack we
+ * are, we have to pass them a position parameter.
+ *
+ * This is an implementation detail that I don't want to expose to the hypothetical user, so I
+ * split the recursive part into a helper function and provide a wrapper as the entry point.
+ */
+
 fn heaps_algorithm_helper<F, T>(current: &mut [T], callback: &mut F, position: usize)
     where F: FnMut(&mut [T]) {
         if position == 1 {
             callback(current);
             return;
         } else if position == 0 {
-            panic!("I don't think this should ever happen");
+            panic!("heaps_algorithm_helper() called with position == 0\n\
+                    This should never happen -- investigate please.");
         }
 
         for i in 0..(position - 1) {
@@ -62,8 +76,21 @@ fn heaps_algorithm<F, T>(mut current: &mut Vec<T>, callback: &mut F)
 
 #[test]
 fn permuter_handles_empty() {
-    let mut myvector: Vec<u32> = vec![];
-    heaps_algorithm(&mut myvector, &mut | _: &mut [u32] | -> ! { panic!("Should not be called"); });
+    let mut myvector = Vec::new();
+    let mut complainer = | _: &mut [u32] | -> ! {
+        panic!("Should not be called");
+    };
+    heaps_algorithm(&mut myvector, &mut complainer);
+}
+
+#[test]
+#[should_panic(expected = "heaps_algorithm_helper() called with position == 0\n\
+                    This should never happen -- investigate please.")]
+fn recursive_call_panics_on_empty() {
+    let mut rand_vec: Vec<u32> = random_vector(MAX_PERMUTATION_SIZE);
+    heaps_algorithm_helper(&mut rand_vec, &mut | _: &mut [u32] | -> ! {
+        panic!("Not correct panic");
+    }, 0);
 }
 
 #[test]
@@ -75,31 +102,38 @@ fn permuter_handles_base_case() {
     };
     heaps_algorithm(&mut testvector, &mut callback);
     heaps_algorithm_helper(&mut testvector, &mut callback, 1);
+
+    /* Also test that the recursive part of the function immediately calls the array if "position"
+     * is 1 no matter what the slice is. */
+    let mut alternate_test: Vec<u32> = vec![1, 2, 3, 4];
+    let samevector = alternate_test.clone();
+    let mut altcallback = | test_array: &mut [u32] | {
+        assert_eq!(test_array, &samevector as &[u32]);
+    };
+    heaps_algorithm_helper(&mut alternate_test, &mut altcallback, 1);
 }
 
-/*
- * This function uses the recursive nature of the Heap's algorithm implementation to show the
- * correctness of its output.
- *
- * The reasoning is provided below:
- *      We know from the tests above, that the function implements the base case properly (i.e.
- *      returns a single element vector unmodified)
- *      For each step on from that, we can take for granted that each recursive call of our
- *      function using an array one smaller than the current one, correctly gives all permutations
- *      of an array that size.
- *      If we take that, we can just check that after each call to the recursive function we put an
- *      element on the end of the array that hasn't been there before, and that each element in the
- *      array appears at the end once only (per recursive call, so overall (N-1)! times.
- *      From implementation details, it turns out that we're already calling the checking function
- *      on every new permutation, so we throw in a few more checks that everything is in the
- *      correct order anyway.
- */
 #[test]
 #[ignore]
+/// Use the recursive nature of the Heap's algorithm implementation to show correctness.
+///
+/// The reasoning is provided below:
+///
+/// We know from the tests above, that the function implements the base case properly (i.e. returns
+/// a single element vector unmodified).
+/// For each step on from that, we can take for granted that each recursive call of our function
+/// using an array one smaller than the current one, correctly gives all permutations of an array
+/// that size.
+/// If we take that, we can just check that after each call to the recursive function we put an
+/// element on the end of the array that hasn't been there before, and that each element in the
+/// array appears at the end once only per recursive call, so overall (N-1)! times.
+/// From implementation, it turns out that we're already calling the checking function on every new
+/// permutation, so we throw in a few more checks that everything is in the correct order anyway.
 fn creates_all_permutations() {
     let mut current_factorial = 1;
 
     let mut current_vector: Vec<usize> = vec![0];
+    // Don't go higher than 10 -- factorial increases *really* fast.
     for last_element in 1..11 {
         let mut times_seen = vec![0; last_element + 1];
         let mut prev_last = last_element;
@@ -124,11 +158,17 @@ fn creates_all_permutations() {
             };
             heaps_algorithm(&mut current_vector, &mut array_checker);
         }
+
         assert!(times_seen.iter().all(| item: &usize | -> bool { *item == current_factorial }));
     }
 }
 
 #[test]
+/// Now we have reasonable confidence in our recursive implementation, we use it to check the
+/// non-recursive implementation.
+///
+/// Just take a random vector, and iterate over all its permutations, asserting that both
+/// implementations return the same permutations in the same order.
 fn same_permutations() {
     let initial_random: Vec<u32> = random_vector(MAX_PERMUTATION_SIZE);
     println!("Initial vector: {:?}", initial_random);
@@ -152,6 +192,10 @@ fn same_permutations() {
 
 #[test]
 #[ignore]
+/// Testing random things is really difficult.
+///
+/// Here I just make sure we get the correct length output, completely ignoring the values in the
+/// vector returned
 fn random_vector_good_size() {
     // TODO -- make sure that we print this message out if someone kills the process.
     println!("Just to note -- this function could go on forever.\n\
