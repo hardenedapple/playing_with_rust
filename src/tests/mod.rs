@@ -8,9 +8,7 @@ pub const MAX_PERMUTATION_SIZE: usize = 10;
  * NOTE:
  *  This function returns Items with attributes in the 16 bit range.
  *  This is so that with 30 elements in a knapsack, it should be impossible for the value or
- *  weight to overflow a 32 bit unsigned integer.
- *  TODO -- actually check that this is the case, so far this conclusion is only justified by
- *  inspection.
+ *  weight to overflow a 32 bit unsigned integer (unless I'm missing something.
  */
 impl rand::Rand for Item {
     fn rand<R: rand::Rng>(rng: &mut R) -> Item {
@@ -101,7 +99,7 @@ fn alternate_same_set<T: PartialEq + Ord>(left: &mut Vec<T>, right: &mut Vec<T>)
 #[test]
 fn handles_base_case() {
     let knapsack_problem = KnapsackProblem { capacity: 0, options: Vec::new() };
-    let knapsack_solution = best_knapsack(knapsack_problem).unwrap();
+    let knapsack_solution = best_knapsack(knapsack_problem);
     let correct_solution = KnapsackSolution {
         weight: 0, value: 0, capacity: 0, items: Vec::new(),
     };
@@ -129,7 +127,7 @@ fn handles_simple() {
         items: item_options[1..].to_vec(),
     };
 
-    assert_eq!(best_knapsack(knapsack_problem).unwrap(), correct_solution);
+    assert_eq!(best_knapsack(knapsack_problem), correct_solution);
 }
 
 #[test]
@@ -138,7 +136,7 @@ fn ignores_valueless() {
         capacity: 10,
         options: vec![ Item { weight: 1, value: 0 } ],
     };
-    let knapsack_solution = best_knapsack(knapsack_problem).unwrap();
+    let knapsack_solution = best_knapsack(knapsack_problem);
     let correct_solution = KnapsackSolution {
         weight: 0, value: 0, capacity: 10, items: Vec::new(),
     };
@@ -179,7 +177,7 @@ fn order_insensitive() {
         first_solution = best_knapsack(KnapsackProblem {
             capacity: knapsack_capacity,
             options: initial_permutation.clone(),
-        }).unwrap();
+        });
     } else {
         return;
     }
@@ -188,7 +186,7 @@ fn order_insensitive() {
         assert_eq!(first_solution, best_knapsack(KnapsackProblem {
             capacity: knapsack_capacity,
             options: next_permutation.clone(),
-        }).unwrap());
+        }));
     }
 }
 

@@ -56,7 +56,7 @@ fn vector_same_set<T: PartialEq>(left: &Vec<T>, right: &Vec<T>)
         let mut found_item = false;
         for (index, value) in right.iter().enumerate() {
             if *value == *item && marker[index] == 0 {
-                found_item = true;
+                found_item    = true;
                 marker[index] = 1;
                 break;
             }
@@ -67,8 +67,9 @@ fn vector_same_set<T: PartialEq>(left: &Vec<T>, right: &Vec<T>)
         }
     }
 
-    #[cfg(test)]
-    assert!(marker.iter().all(| value: &u32 | { *value == 1 }));
+    // Apparently not possible on the stable release channel.
+    // #[cfg(test)]
+    // assert!(marker.iter().all(| value: &u32 | { *value == 1 }));
 
     return true;
 }
@@ -95,9 +96,10 @@ pub fn vector_same_set_test<T: PartialEq + Clone>(left: &Vec<T>, right: &Vec<T>)
 impl PartialEq for KnapsackSolution {
     fn eq(&self, other: &Self) -> bool {
         let attributes_same =
-            self.weight == other.weight &&
+            self.weight   == other.weight   &&
             self.capacity == other.capacity &&
-            self.value == other.value;
+            self.value    == other.value;
+
         vector_same_set(&self.items, &other.items) && attributes_same
     }
 }
@@ -113,7 +115,7 @@ impl Eq for KnapsackSolution {}
 ///                               capacity: 3,
 ///                               options: vec![Item { weight: 10, value: 100 },
 ///                                             Item { weight: 1,  value: 1 }],
-///                           } ).unwrap(),
+///                           } ),
 ///             KnapsackSolution {
 ///                 weight:   1,
 ///                 capacity: 2,
@@ -122,44 +124,38 @@ impl Eq for KnapsackSolution {}
 ///             });
 /// ```
 pub fn best_knapsack(mut problem: KnapsackProblem)
-    -> Result<KnapsackSolution, Vec<Item>> {
+    -> KnapsackSolution {
 
     if problem.options.len() == 0 {
-        return Ok(KnapsackSolution {
-            weight: 0,
-            value: 0,
-            capacity: problem.capacity,
-            items: problem.options
-        });
+        return KnapsackSolution {
+            weight   : 0,
+            value    : 0,
+            capacity : problem.capacity,
+            items    : problem.options
+        };
     }
 
-    let test_item = problem.options.pop().unwrap();
-    let other_items = problem.options.clone();
+    let test_item    = problem.options.pop().unwrap();
+    let other_items  = problem.options.clone();
     let cur_capacity = problem.capacity;
 
-    let without_item = best_knapsack(problem).unwrap();
+    let without_item = best_knapsack(problem);
 
     if cur_capacity < test_item.weight {
-        Ok(without_item)
+        without_item
     } else {
-        match best_knapsack(KnapsackProblem {
+        let mut with_item = best_knapsack(KnapsackProblem {
             capacity: cur_capacity - test_item.weight,
             options: other_items,
-        }) {
-            /* TODO -- Question: what should be done in case of integer overflow? */
-            Ok(mut solution) =>
-                if (solution.value + test_item.value) > without_item.value {
-                    solution.weight += test_item.weight;
-                    solution.value += test_item.value;
-                    solution.items.push(test_item);
-                    Ok(solution)
-                } else {
-                    Ok(without_item)
-                },
-            Err(mut err_val) => {
-                err_val.push(test_item);
-                Err(err_val)
-            }
+        });
+        /* TODO -- Question: what should be done in case of integer overflow? */
+        if (with_item.value  +  test_item.value) > without_item.value {
+            with_item.weight += test_item.weight;
+            with_item.value  += test_item.value;
+            with_item.items.push(test_item);
+            with_item
+        } else {
+            without_item
         }
     }
 }
