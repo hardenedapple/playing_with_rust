@@ -51,6 +51,11 @@ fn known_edge_cases() {
 	both_versions_agree("similarly the break of this sen tance is at the start of a word");
 	both_versions_agree("while this sentance is sp lit at the end of a word");
 	both_versions_agree("while this sentance is sp lit at the end of an word");
+	both_versions_agree("");
+	both_versions_agree(" ");
+	both_versions_agree("t ");
+	both_versions_agree(" t");
+	both_versions_agree("  ");
 }
 
 #[test]
