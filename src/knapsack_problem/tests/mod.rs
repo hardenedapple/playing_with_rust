@@ -1,21 +1,8 @@
 extern crate rand;
-use super::*;
+use knapsack_problem::*;
 use self::rand::Rng;
 pub const MAX_VECTOR_SIZE: usize = 30;
 pub const MAX_PERMUTATION_SIZE: usize = 10;
-
-/*
- * NOTE:
- *  This function returns Items with attributes in the 16 bit range.
- *  This is so that with 30 elements in a knapsack, it should be impossible for the value or
- *  weight to overflow a 32 bit unsigned integer (unless I'm missing something.
- */
-impl rand::Rand for Item {
-    fn rand<R: rand::Rng>(rng: &mut R) -> Item {
-        let tuple: (u16, u16) = rng.gen();
-        Item { weight: tuple.0 as u32, value: tuple.1 as u32 }
-    }
-}
 
 /*
  * TODO
@@ -94,6 +81,19 @@ impl <T> VectorPermutations<T> {
 fn alternate_same_set<T: PartialEq + Ord>(left: &mut Vec<T>, right: &mut Vec<T>) -> bool {
     left.sort(); right.sort();
     left == right
+}
+
+/*
+ * NOTE:
+ *  This function returns Items with attributes in the 16 bit range.
+ *  This is so that with 30 elements in a knapsack, it should be impossible for the value or
+ *  weight to overflow a 32 bit unsigned integer (unless I'm missing something.
+ */
+impl rand::Rand for Item {
+    fn rand<R: rand::Rng>(rng: &mut R) -> Item {
+        let tuple: (u16, u16) = rng.gen();
+        Item { weight: tuple.0 as u32, value: tuple.1 as u32 }
+    }
 }
 
 #[test]
