@@ -100,7 +100,7 @@ impl Eq for KnapsackSolution {}
 /// Returns an optimal solution to the KnapsackProblem
 ///
 /// ```
-/// use knapsack_problem::knapsack_problem::{best_knapsack, KnapsackProblem, KnapsackSolution, Item};
+/// use rust_algorithms::knapsack_problem::{best_knapsack, KnapsackProblem, KnapsackSolution, Item};
 ///
 /// assert_eq!(best_knapsack( KnapsackProblem {
 ///                               capacity: 3,

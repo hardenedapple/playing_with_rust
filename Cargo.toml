@@ -1,5 +1,5 @@
 [package]
-name = "knapsack_problem"
+name = "rust_algorithms"
 version = "0.1.0"
 authors = ["hardenedapple <hardenedapple@server.fake>"]
 
