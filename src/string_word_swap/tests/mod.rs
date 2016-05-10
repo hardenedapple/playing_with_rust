@@ -15,7 +15,17 @@ fn string_swap_works_basic() {
 	let correct_answer: Vec<u8> = String::from("example an is \
 												this there Hello").into_bytes();
 	string_swap(&mut initial_sentance);
-	assert_eq!(initial_sentance, correct_answer); // Make an error so that the above lines are printed.
+	assert_eq!(initial_sentance, correct_answer);
+}
+
+#[test]
+fn inplace_string_swap_works_basic() {
+	let mut initial_sentance: Vec<u8> = String::from("Hello there this \
+														is an example").into_bytes();
+	let correct_answer: Vec<u8> = String::from("example an is \
+												this there Hello").into_bytes();
+	inplace_string_swap(&mut initial_sentance);
+	assert_eq!(initial_sentance, correct_answer);
 }
 
 fn obvious_word_reversal(sentance: &str) -> String {
@@ -29,33 +39,41 @@ fn obvious_version_works() {
 	assert_eq!(answer, correct_answer);
 }
 
-fn both_versions_agree(original_sentance: &str) {
-	let mut inplace_version: Vec<u8> = String::from(original_sentance).into_bytes();
-	string_swap(&mut inplace_version);
-	let inplace_version: String = unsafe { String::from_utf8_unchecked(inplace_version) };
-	assert_eq!(inplace_version, obvious_word_reversal(original_sentance));
+fn all_versions_agree(original_sentance: &str) {
+	let mut raw_vector: Vec<u8> = String::from(original_sentance).into_bytes();
+	string_swap(&mut raw_vector);
+	let word_buffered: String = unsafe { String::from_utf8_unchecked(raw_vector) };
+	
+	let simple_version = obvious_word_reversal(original_sentance);	
+	assert_eq!(word_buffered, simple_version); // Check for requiring borrow here
+	
+	let mut raw_vector: Vec<u8> = String::from(original_sentance).into_bytes();
+	inplace_string_swap(&mut raw_vector);
+	let inplace_version: String = unsafe { String::from_utf8_unchecked(raw_vector) };
+	
+	assert_eq!(inplace_version, simple_version);
 }
 
 #[test]
 fn known_edge_cases() {
-	both_versions_agree(" this sentance has a space at the start");
-	both_versions_agree("this one has a space at the end ");
-	both_versions_agree("sentance witha space as the middle  char");
-	both_versions_agree("sentance with many                      spaces in the middle");
-	both_versions_agree("the middle of this sentance is a part of an word");
-	both_versions_agree("   this sentance  has multiple   spaces    in different  places  ");
-	both_versions_agree("onelongwordthatshouldn'tchange");
-	both_versions_agree("similarwithoutanmiddlecharacter");
-	both_versions_agree("This sentance has no middlle char and the middle is in a word");
-	both_versions_agree("similarly, the break of this sen tance is at the start of a word");
-	both_versions_agree("similarly the break of this sen tance is at the start of a word");
-	both_versions_agree("while this sentance is sp lit at the end of a word");
-	both_versions_agree("while this sentance is sp lit at the end of an word");
-	both_versions_agree("");
-	both_versions_agree(" ");
-	both_versions_agree("t ");
-	both_versions_agree(" t");
-	both_versions_agree("  ");
+	all_versions_agree(" this sentance has a space at the start");
+	all_versions_agree("this one has a space at the end ");
+	all_versions_agree("sentance witha space as the middle char");
+	all_versions_agree("sentance with many                      spaces in the middle");
+	all_versions_agree("the middle of this sentance is a part of an word");
+	all_versions_agree("   this sentance  has multiple   spaces    in different  places  ");
+	all_versions_agree("onelongwordthatshouldn'tchange");
+	all_versions_agree("similarwithoutanmiddlecharacter");
+	all_versions_agree("This sentance has no middlle char and the middle is in a word");
+	all_versions_agree("similarly, the break of this sen tance is at the start of a word");
+	all_versions_agree("similarly the break of this sen tance is at the start of a word");
+	all_versions_agree("while this sentance is sp lit at the end of a word");
+	all_versions_agree("while this sentance is sp lit at the end of an word");
+	all_versions_agree("");
+	all_versions_agree(" ");
+	all_versions_agree("t ");
+	all_versions_agree(" t");
+	all_versions_agree("  ");
 }
 
 #[test]

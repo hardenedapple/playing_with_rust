@@ -28,28 +28,23 @@ fn move_buffer_here<T>(sentance: &mut [u8], buffer: T, index: usize)
 
 
 pub fn string_swap(sentance: &mut [u8]) {
+	if sentance.len() == 0 { return; }
+	
 	let mut left_word_buffer: Vec<u8> = Vec::new();
 	let mut right_word_buffer: Vec<u8> = Vec::new();
-	
-	if sentance.len() == 0 {
-		return;
-	}
 	
 	let (mut left_index, mut right_index,
 		 mut prev_left_index): (usize, usize, usize) = (0, sentance.len() - 1, 0);
 
 	macro_rules! move_left_buffer {
 		() => {
-				sentance[right_index] = ASCII_SPACE;
 				move_buffer_here(sentance, left_word_buffer.drain(..), right_index + 1);
 		};
 	}
 
 	macro_rules! move_right_buffer {
 		() => {
-				sentance[left_index] = ASCII_SPACE;
 				move_buffer_here(sentance, right_word_buffer.drain(..).rev(), prev_left_index);
-				prev_left_index = left_index + 1;
 		};
 	}
 
@@ -62,14 +57,16 @@ pub fn string_swap(sentance: &mut [u8]) {
 		let cur_left_char = sentance[left_index];
 
 		if cur_left_char == ASCII_SPACE {
+			sentance[right_index] = ASCII_SPACE;
 			move_left_buffer!();
 		} else {
 			left_word_buffer.push(cur_left_char);
 		}
-
 		
 		if cur_right_char == ASCII_SPACE {
+			sentance[left_index] = ASCII_SPACE;
 			move_right_buffer!();
+			prev_left_index = left_index + 1;
 		} else {
 			right_word_buffer.push(cur_right_char);
 		}
@@ -86,16 +83,67 @@ pub fn string_swap(sentance: &mut [u8]) {
 
 	if left_index == right_index { left_word_buffer.push(sentance[left_index]); }
 	
-	for character in left_word_buffer.drain(..) {
-		sentance[prev_left_index] = character;
-		prev_left_index += 1;
+	move_buffer_here(sentance,
+					 left_word_buffer.drain(..)
+					 				 .chain(
+					 				 	right_word_buffer.drain(..)
+					 				 					 .rev()),
+					 prev_left_index);	
+}
+
+
+pub fn inplace_string_swap(sentance: &mut [u8]) {
+	if sentance.len() == 0 { return; }
+	
+	let (mut left_index, mut right_index): (usize, usize) = (0, sentance.len() - 1);
+	let (mut prev_left_index, mut prev_right_index) = (left_index, right_index + 1);
+	
+	macro_rules! reverse_right_word {
+		() => {
+				{
+					let mut substring = &mut sentance[(right_index + 1)..prev_right_index];
+					substring.reverse();
+					prev_right_index = right_index;
+			};
+		};
+	}
+
+	macro_rules! reverse_left_word {
+		() => {
+				{
+					let mut substring = &mut sentance[prev_left_index..left_index];
+					substring.reverse();
+					prev_left_index = left_index + 1;
+			};
+		};
 	}
 	
-	for character in right_word_buffer.drain(..).rev() {
-		sentance[prev_left_index] = character;
-		prev_left_index += 1;
+	loop {
+		if left_index >= right_index {
+			break;
+		}
+		
+		sentance.swap(right_index, left_index);
+		
+		if sentance[right_index] == ASCII_SPACE {
+			reverse_right_word!();
+		}
+		if sentance[left_index] == ASCII_SPACE {
+			reverse_left_word!();
+		}
+
+		left_index += 1;
+		right_index -= 1;
 	}
+
+	// Cleanup on the final word
+	if sentance[left_index] == ASCII_SPACE { reverse_left_word!(); }
+	if sentance[right_index] == ASCII_SPACE { reverse_right_word!(); }
 	
+	if prev_left_index < prev_right_index {
+		let mut substring = &mut sentance[prev_left_index..prev_right_index];
+		substring.reverse();
+	}
 }
 
 #[cfg(test)]
