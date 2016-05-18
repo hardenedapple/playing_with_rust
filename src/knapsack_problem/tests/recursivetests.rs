@@ -9,6 +9,8 @@
  * aid us when asserting statements about the correctness.
  */
 use super::*;
+// TODO -- this is already 'used' in my "super" module, can I just get it from there?
+use test_utils::{VectorPermutations,random_vector};
 
 /*
  * Because each new permutation is reached on the innermost recursive call, that call must have all

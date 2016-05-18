@@ -9,3 +9,6 @@
 
 pub mod knapsack_problem;
 pub mod string_word_swap;
+
+#[cfg(test)]
+pub mod test_utils;

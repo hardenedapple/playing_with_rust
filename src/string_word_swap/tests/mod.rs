@@ -8,26 +8,8 @@
 */
 extern crate rand;
 use super::*;
-use self::rand::Rng;
+use test_utils::*;
 
-/* TODO -- DRY -- I already have this function in the knapsack_problem
-	testing module.
-	Change the testing module scheme so I can share these functions.
-*/
-pub fn random_vector<T: rand::Rand>(max_length: usize)
-    -> Vec<T> {
-        if max_length == 0 {
-            return Vec::new();
-        }
-
-        let length: usize = rand::random::<usize>() % (max_length + 1);
-        let mut retval: Vec<T> = Vec::with_capacity(length);
-        let mut rng = rand::thread_rng();
-        for _ in 0..length {
-            retval.push(rng.gen());
-        }
-        retval
-}
 
 #[test]
 fn string_swap_works_basic() {
