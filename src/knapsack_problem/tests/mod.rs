@@ -165,11 +165,16 @@ fn same_result_each_time() {
 #[ignore]
 fn order_insensitive() {
     /*
-     * NOTE -- this once took over 15 min before I gave up
-     * 		figure out the maximum running time of this function
-     *		and get it under control.
+     * NOTE -- this once took over 15 min before I gave up.
+     *		It took such a long time when using MAX_PERMUTATION_SIZE,
+     *		so I have reduced it by one.
+     *		I know that when reduced by one this will finish within
+     *		that time limit because I attached to the running process in
+     *		gdb and printed out the 'permutations' structure.
+     *		It had reached the '9' level, but had only managed to get there
+     *		4 times -- so waiting for level 10 was a little hopeless.
      */
-    let item_options: Vec<Item> = random_vector(MAX_PERMUTATION_SIZE);
+    let item_options: Vec<Item> = random_vector(MAX_PERMUTATION_SIZE - 1);
     println!("Original vector: {:?}", item_options);
     let mut permutations = VectorPermutations::from_vec(item_options);
     let knapsack_capacity = rand::random();
