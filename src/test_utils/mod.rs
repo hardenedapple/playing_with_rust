@@ -2,7 +2,7 @@ extern crate rand;
 use self::rand::Rng;
 
 /*
- * TODO
+ * TODO (maybe)
  * If I make the distribution less random and more weighted to the edges, this may catch more
  * edge cases in the code.
  * See https://doc.rust-lang.org/rand/rand/distributions/gamma/index.html
@@ -53,9 +53,6 @@ impl <T> VectorPermutations<T> {
             self.started = true;
             // Return original permutation as first one.
             return Some(&self.permutation);
-        } else if self.index == num_elements {
-            // This is our finished condition
-            return None;
         }
 
         // Move one more step along Heap's algorithm
@@ -71,6 +68,28 @@ impl <T> VectorPermutations<T> {
                 self.index += 1;
             }
         }
+        
+        /*
+        	We have finished, and are about to return None.
+        	To allow repeated use of this structure, we reset the value
+        	to its initialised state, so that calling this function
+        	again will start from the beginning.
+        */
+        if num_elements % 2 == 0 {
+            self.permutation.swap(num_elements - 1, 1);
+            self.permutation.swap(num_elements - 2, 0);
+            let last_element = self.permutation.remove(0);
+            self.permutation.push(last_element);
+        } else {
+            self.permutation.swap(num_elements - 1, 0);
+        }
+        
+        for value in self.count.iter_mut() {
+        	*value = 0;
+        }
+        
+        self.started = false;
+        self.index = 0;
         None
     }
 }
