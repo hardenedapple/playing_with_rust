@@ -6,7 +6,28 @@
 	Have to watch out for double spaces -- the split() method gives you an empty string
 	to represent them.
 */
+extern crate rand;
 use super::*;
+use self::rand::Rng;
+
+/* TODO -- DRY -- I already have this function in the knapsack_problem
+	testing module.
+	Change the testing module scheme so I can share these functions.
+*/
+pub fn random_vector<T: rand::Rand>(max_length: usize)
+    -> Vec<T> {
+        if max_length == 0 {
+            return Vec::new();
+        }
+
+        let length: usize = rand::random::<usize>() % (max_length + 1);
+        let mut retval: Vec<T> = Vec::with_capacity(length);
+        let mut rng = rand::thread_rng();
+        for _ in 0..length {
+            retval.push(rng.gen());
+        }
+        retval
+}
 
 #[test]
 fn string_swap_works_basic() {
@@ -74,23 +95,53 @@ fn known_edge_cases() {
 	all_versions_agree("t ");
 	all_versions_agree(" t");
 	all_versions_agree("  ");
+	all_versions_agree(" a o e u i ' q j k x , . - p y b m w v z d h t n s f g c r l ");
+}
+
+fn create_random_sentance(max_size: usize)
+	 -> String {
+	/*
+		TODO
+			Look for neater implementation -- Currently seems a little obtuse.
+			Maybe use an alternate method to split my characters into words.
+	*/
+	let mut initial_sentance = String::from(
+										"abcdefghijklmnopqrstuvwxyz\
+										0123456789\
+										ABCDEFGHIJKLMNOPQRSTUVWXYZ");
+	let mut rand_vec = random_vector(rand::random::<usize>() % max_size);
+	rand_vec.sort();
+	let mut position_iterator = rand_vec.iter();
+	let mut final_string = String::new();
+	let mut current_position: usize = 0;
+	while let Some(&next_space) = position_iterator.next() {
+		for _ in current_position..next_space {	
+			if let Some(next_char) = initial_sentance.pop() {
+				final_string.push(next_char);
+			} else {
+				break;
+			}
+		}
+		current_position = next_space;
+		final_string.push(' ');
+	}
+
+	for char in initial_sentance.chars().rev() {
+		final_string.push(char);
+	}
+	
+	final_string
 }
 
 #[test]
-fn string_swap_compare_to_obvious() {
-	/*
-	let mut dictionary = ["hello", "there", "these", "are", "some", 
-		"words", "that", "I",
-		"can", "think", "of", "right", "now", "I'm", "not", "sure",
-		"how", "I'm", "going", "to implement", "obtaining", "random",
-		"words", "at", "the", "moment,", "but", "I", "expect", "it's",
-		"something", "along", "the", "lines", "of making", "a",
-		"random", "selection", "from", "two", "characters,", "space",
-		"and", "'a',", "where", "with", "the", "selection", "of", "'a'
-		being", "much", "more", "likely."].iter().map(| x | { String::from(x) });
-	
-	let mut total_words: Vec<String> = 
-	let mut initial_sequence: Vec<u8> = random_sentance(MAX_LENGTH);
+fn all_agree_random() {
+	/* 
+		TODO
+			Maybe not limit the number of spaces -- maybe both with and without limit.
 	*/
+	for _ in 0..1000 {
+		let next_sentance = create_random_sentance(20);
+		all_versions_agree(&next_sentance);
+	}
 }
 	
