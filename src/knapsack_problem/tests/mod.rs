@@ -1,6 +1,6 @@
 extern crate rand;
 use knapsack_problem::*;
-use test_utils::*;
+use test_utils::{VectorPermutations,random_vector};
 pub const MAX_VECTOR_SIZE: usize = 30;
 pub const MAX_PERMUTATION_SIZE: usize = 10;
 

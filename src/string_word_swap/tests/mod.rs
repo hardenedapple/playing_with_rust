@@ -8,7 +8,7 @@
 */
 extern crate rand;
 use super::*;
-use test_utils::*;
+use test_utils::random_vector;
 
 
 #[test]
