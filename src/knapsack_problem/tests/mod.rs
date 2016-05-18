@@ -92,16 +92,16 @@ fn alternate_same_set<T: PartialEq + Ord>(left: &mut Vec<T>, right: &mut Vec<T>)
 impl rand::Rand for Item {
     fn rand<R: rand::Rng>(rng: &mut R) -> Item {
         let tuple: (u16, u16) = rng.gen();
-        Item { weight: tuple.0 as u32, value: tuple.1 as u32 }
+        Item { item_weight: tuple.0 as u32, item_value: tuple.1 as u32 }
     }
 }
 
 #[test]
 fn handles_base_case() {
-    let knapsack_problem = KnapsackProblem { capacity: 0, options: Vec::new() };
+    let knapsack_problem = KnapsackProblem { kp_capacity: 0, kp_options: Vec::new() };
     let knapsack_solution = best_knapsack(knapsack_problem);
     let correct_solution = KnapsackSolution {
-        weight: 0, value: 0, capacity: 0, items: Vec::new(),
+        ks_weight: 0, ks_value: 0, ks_capacity: 0, ks_items: Vec::new(),
     };
     assert_eq!(knapsack_solution, correct_solution);
 }
@@ -109,22 +109,22 @@ fn handles_base_case() {
 #[test]
 fn handles_simple() {
     let item_options = vec![
-        Item { weight: 12, value: 4 },
-        Item { weight: 1, value: 1 },
-        Item { weight: 1, value: 2 },
-        Item { weight: 2, value: 2 },
-        Item { weight: 4, value: 10 }
+        Item { item_weight: 12, item_value: 4 },
+        Item { item_weight: 1, item_value: 1 },
+        Item { item_weight: 1, item_value: 2 },
+        Item { item_weight: 2, item_value: 2 },
+        Item { item_weight: 4, item_value: 10 }
     ];
 
     let knapsack_problem = KnapsackProblem {
-        capacity: 15,
-        options: item_options.clone(),
+        kp_capacity: 15,
+        kp_options: item_options.clone(),
     };
     let correct_solution = KnapsackSolution {
-        weight: 8,
-        value: 15,
-        capacity: 7,
-        items: item_options[1..].to_vec(),
+        ks_weight: 8,
+        ks_value: 15,
+        ks_capacity: 7,
+        ks_items: item_options[1..].to_vec(),
     };
 
     assert_eq!(best_knapsack(knapsack_problem), correct_solution);
@@ -133,12 +133,12 @@ fn handles_simple() {
 #[test]
 fn ignores_valueless() {
     let knapsack_problem = KnapsackProblem {
-        capacity: 10,
-        options: vec![ Item { weight: 1, value: 0 } ],
+        kp_capacity: 10,
+        kp_options: vec![ Item { item_weight: 1, item_value: 0 } ],
     };
     let knapsack_solution = best_knapsack(knapsack_problem);
     let correct_solution = KnapsackSolution {
-        weight: 0, value: 0, capacity: 10, items: Vec::new(),
+        ks_weight: 0, ks_value: 0, ks_capacity: 10, ks_items: Vec::new(),
     };
     assert_eq!(knapsack_solution, correct_solution);
 }
@@ -150,12 +150,12 @@ fn same_result_each_time() {
     let random_capacity = rand::random::<u32>();
 
     let original_answer = best_knapsack(KnapsackProblem {
-        capacity: random_capacity,
-        options: rand_vec.clone(),
+        kp_capacity: random_capacity,
+        kp_options: rand_vec.clone(),
     });
     let other_answer = best_knapsack(KnapsackProblem {
-        capacity: random_capacity,
-        options: rand_vec.clone(),
+        kp_capacity: random_capacity,
+        kp_options: rand_vec.clone(),
     });
 
     assert_eq!(other_answer, original_answer);
@@ -165,8 +165,9 @@ fn same_result_each_time() {
 #[ignore]
 fn order_insensitive() {
     /*
-     * NOTE -- this once took over 15 min before I gave up -- figure out the maximum running time
-     * of this function and get it under control.
+     * NOTE -- this once took over 15 min before I gave up
+     * 		figure out the maximum running time of this function
+     *		and get it under control.
      */
     let item_options: Vec<Item> = random_vector(MAX_PERMUTATION_SIZE);
     println!("Original vector: {:?}", item_options);
@@ -175,8 +176,8 @@ fn order_insensitive() {
     let first_solution: KnapsackSolution;
     if let Some(initial_permutation) = permutations.permute() {
         first_solution = best_knapsack(KnapsackProblem {
-            capacity: knapsack_capacity,
-            options: initial_permutation.clone(),
+            kp_capacity: knapsack_capacity,
+            kp_options: initial_permutation.clone(),
         });
     } else {
         return;
@@ -184,8 +185,8 @@ fn order_insensitive() {
 
     while let Some(next_permutation) = permutations.permute() {
         assert_eq!(first_solution, best_knapsack(KnapsackProblem {
-            capacity: knapsack_capacity,
-            options: next_permutation.clone(),
+            kp_capacity: knapsack_capacity,
+            kp_options: next_permutation.clone(),
         }));
     }
 }
