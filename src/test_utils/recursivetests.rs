@@ -190,7 +190,6 @@ fn same_permutations() {
     assert!(vector_permutations.permute().is_none());
 }
 
-/*
 #[test]
 fn state_is_reset() {
     let permute_start: Vec<u32> = random_vector(MAX_PERMUTATION_SIZE);
@@ -204,26 +203,22 @@ fn state_is_reset() {
 	assert_eq!(initial_state, vector_permutations);
 	
 	loop {
-		let initial = match vector_permutations.permute() {
-			Some(next_permutation) => next_permutation,
-			None => {
-				assert!(initial_state.permute().is_none());
+		// TODO -- extra block to satisfy the borrow checker
+		//			any way to neaten this?
+		{
+			let initial = vector_permutations.permute();
+			let alternate = initial_state.permute();
+			
+			if initial.is_none() {
+				assert!(alternate.is_none());
 				break;
 			}
-		};
-		let alternate = match initial_state.permute() {
-			Some(next_permutation) => next_permutation,
-			None => {
-				panic!("alternate reached end before initial\n");
-			}
-		};
-
-		assert_eq!(*alternate, *initial);
+			assert_eq!(*(alternate.unwrap()), *(initial.unwrap()));
+		}
 		assert_eq!(initial_state, vector_permutations);
 	}
 	assert_eq!(initial_state, vector_permutations);
 }
-*/
 
 #[test]
 #[ignore]
