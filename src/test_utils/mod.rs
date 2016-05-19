@@ -1,5 +1,15 @@
 extern crate rand;
 use self::rand::Rng;
+/*
+	Recommended maximum sizes for vectors with permutations.
+	We export this because iterating over all permutations in a vector
+	is factorial in the number of elements, so more than about 10
+	becomes prohibitively expensive.
+	This is something that users of this code should know and have
+	available to them.
+*/
+
+pub const MAX_PERMUTATION_SIZE: usize = 10;
 
 /*
  * TODO (maybe)
@@ -24,6 +34,7 @@ pub fn random_vector<T: rand::Rand>(max_length: usize)
         retval
 }
 
+#[derive(Clone, PartialEq, Debug)]
 pub struct VectorPermutations<T> {
     permutation: Vec<T>,
     count: Vec<usize>,
@@ -93,3 +104,5 @@ impl <T> VectorPermutations<T> {
         None
     }
 }
+
+mod recursivetests;

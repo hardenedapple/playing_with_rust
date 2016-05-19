@@ -9,7 +9,6 @@
  * aid us when asserting statements about the correctness.
  */
 use super::*;
-use test_utils::{VectorPermutations,random_vector};
 
 /*
  * Because each new permutation is reached on the innermost recursive call, that call must have all
@@ -190,6 +189,41 @@ fn same_permutations() {
     }
     assert!(vector_permutations.permute().is_none());
 }
+
+/*
+#[test]
+fn state_is_reset() {
+    let permute_start: Vec<u32> = random_vector(MAX_PERMUTATION_SIZE);
+    println!("Initial vector: {:?}", permute_start);
+    let mut vector_permutations = VectorPermutations::from_vec(permute_start);
+    let mut initial_state = vector_permutations.clone();
+    while let Some(_) = vector_permutations.permute() {
+    	// Just to iterate through the initial state.
+    }
+	
+	assert_eq!(initial_state, vector_permutations);
+	
+	loop {
+		let initial = match vector_permutations.permute() {
+			Some(next_permutation) => next_permutation,
+			None => {
+				assert!(initial_state.permute().is_none());
+				break;
+			}
+		};
+		let alternate = match initial_state.permute() {
+			Some(next_permutation) => next_permutation,
+			None => {
+				panic!("alternate reached end before initial\n");
+			}
+		};
+
+		assert_eq!(*alternate, *initial);
+		assert_eq!(initial_state, vector_permutations);
+	}
+	assert_eq!(initial_state, vector_permutations);
+}
+*/
 
 #[test]
 #[ignore]

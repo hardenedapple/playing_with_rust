@@ -1,8 +1,7 @@
 extern crate rand;
 use knapsack_problem::*;
-use test_utils::{VectorPermutations,random_vector};
-pub const MAX_VECTOR_SIZE: usize = 30;
-pub const MAX_PERMUTATION_SIZE: usize = 10;
+use test_utils::{VectorPermutations,random_vector,MAX_PERMUTATION_SIZE};
+const MAX_VECTOR_SIZE: usize = 30;
 
 fn alternate_same_set<T: PartialEq + Ord>(left: &mut Vec<T>, right: &mut Vec<T>) -> bool {
     left.sort(); right.sort();
@@ -160,4 +159,3 @@ fn set_check_permutation_independent() {
     }
 }
 
-mod recursivetests;
