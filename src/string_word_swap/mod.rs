@@ -5,6 +5,13 @@
 		a time.
 		When either pointer reaches a space, it moves its data into the
 		other end of the total string.
+
+    Alternate (better) algorithm:
+        Take a string type, have two pointers that iterate from either end.
+        Each iteration, swap the characters in the word from the right and left end of the string.
+        When one of those characters was a space, then reverse the characters between the previous
+        space and the last character added (accounting for having reversed the letters in this word
+        when moving the characters).
 		
 	Note:
 		we use [u8] instead of strings because we maintain the order of bytes
