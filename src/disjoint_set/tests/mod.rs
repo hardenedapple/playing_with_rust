@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use disjoint_set::*;
 
 
-fn make_wrapped<'a, T>(item: BaseNode<'a, T>) -> Node<'a, T> {
+fn make_wrapped<'a, T: PartialEq>(item: BaseNode<'a, T>) -> Node<'a, T> {
     Rc::new(RefCell::new(item))
 }
 
@@ -50,11 +50,31 @@ fn basic_tests() {
 fn create_set() {
     let test_values = vec![1u8, 254, 18, 12];
     let basic_set = make_sets(test_values.clone());
-    for (value, node) in test_values.iter().zip(basic_set) {
+    for (value, node) in test_values.iter().zip(basic_set.iter()) {
         assert_eq!(*value, node.borrow().value);
         match node.borrow().parent {
             Parent::Rank(0) => {},
             _ => unreachable!(),
         };
     };
+
+    let union_res = basic_set[1].clone().union(basic_set[2].clone());
+    assert!(match union_res {
+        UnionResult::Updated => true,
+        UnionResult::NoChange => false,
+    });
+
+    let root: Node<u8> = basic_set[1].clone();
+    assert!(match root.borrow().parent {
+        Parent::Rank(1) => true,
+        _ => unreachable!(),
+    });
+
+    let child: Node<u8> = basic_set[2].clone();
+    assert!(match child.borrow().parent {
+        Parent::UpNode(ref x) => {
+            *x == basic_set[1]
+        },
+        _ => unreachable!(),
+    });
 }

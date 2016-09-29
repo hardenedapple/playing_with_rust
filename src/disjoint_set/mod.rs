@@ -76,11 +76,16 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::iter::FromIterator;
 
+pub enum UnionResult {
+    NoChange,
+    Updated,
+}
+
 pub type Node<'a, T> = Rc<RefCell<BaseNode<'a, T>>>;
 
 /// The `Parent` type -- represents a parent BaseNode or the name of the current rank.
 #[derive(Debug)]
-pub enum Parent<'a, T: 'a> {
+pub enum Parent<'a, T: 'a + PartialEq> {
     UpNode(Node<'a, T>),
     Rank(i32),
 }
@@ -91,13 +96,19 @@ pub enum Parent<'a, T: 'a> {
 /// There are no pointers to child items, the only operation implemented is finding out what set an
 /// item belongs to.
 #[derive(Debug)]
-pub struct BaseNode<'a, T: 'a> {
+pub struct BaseNode<'a, T: 'a + PartialEq> {
     pub parent: Parent<'a, T>,
     pub value: T,
 }
 
+impl<'a, T> PartialEq for BaseNode<'a, T> where T: PartialEq {
+    fn eq(&self, other: &BaseNode<T>) -> bool {
+        self.value == other.value
+    }
+}
+
 // In order to allow changing of the current value
-pub fn find<T>(item: Node<T>) -> Node<T> {
+pub fn find<T: PartialEq>(item: Node<T>) -> Node<T> {
     if let Parent::UpNode(ref mut refcell_val) = item.borrow_mut().parent {
         let retval = find(refcell_val.clone());
         *refcell_val = retval.clone();
@@ -106,7 +117,7 @@ pub fn find<T>(item: Node<T>) -> Node<T> {
     item
 }
 
-pub fn make_sets<'a, T>(values: Vec<T>) -> Vec<Node<'a, T>> {
+pub fn make_sets<'a, T: PartialEq>(values: Vec<T>) -> Vec<Node<'a, T>> {
     Vec::from_iter(values.into_iter().map(
         |x|
         Rc::new(RefCell::new(BaseNode {
@@ -117,7 +128,7 @@ pub fn make_sets<'a, T>(values: Vec<T>) -> Vec<Node<'a, T>> {
 
 pub trait DisjointSet {
     fn find(self) -> Self;
-    fn union(&mut self, other: &mut Self);
+    fn union(self, other: Self) -> UnionResult;
 }
 
 /*
@@ -140,7 +151,7 @@ pub trait DisjointSet {
  * in the same set or not, so it would be reasonably useless to work with
  * separate DisjointSet data structures.
  */
-impl<'a, T> DisjointSet for Node<'a, T> {
+impl<'a, T: PartialEq> DisjointSet for Node<'a, T> {
     fn find(self) -> Self {
         if let Parent::UpNode(ref mut refcell_val) = self.borrow_mut().parent {
             let retval = refcell_val.clone().find();
@@ -151,7 +162,45 @@ impl<'a, T> DisjointSet for Node<'a, T> {
     }
 
 
-    fn union(&mut self, other: &mut Node<T>) {
+    /*
+     * I think I have a bit of a fundamental problem here.
+     * In order to check whether two Nodes are in the same set, I need to check
+     * whether the value I get from calling find() on them both points to the
+     * same Node.
+     * I can't check whether two Rc<T> values point to the same underlying
+     * structure, and I hence have no idea how to implement what I need.
+     *
+     * Temporarily I'm using Node<T> equality to check whether the root Nodes
+     * are the same.
+     * This isn't really a sensible way, it doesn't proove that elements are the
+     * same element, just that they are equal in some manner.
+     */
+    fn union(self, other: Node<'a, T>) -> UnionResult {
+        let my_root = self.find();
+        let their_root = other.find();
+        if my_root == their_root {
+            UnionResult::NoChange
+        } else {
+            // TODO
+            //   Make this actually neat, currently it's very ugly.
+            let my_rank = match my_root.borrow().parent {
+                Parent::Rank(x) => x,
+                _ => unreachable!(),
+            };
+            let their_rank = match their_root.borrow().parent {
+                Parent::Rank(x) => x,
+                _ => unreachable!(),
+            };
+            let (greater_root, greater_rank, lesser_root) =
+                if my_rank < their_rank {
+                    (their_root, their_rank, my_root)
+                } else {
+                    (my_root, my_rank, their_root)
+                };
+            lesser_root.borrow_mut().parent = Parent::UpNode(greater_root.clone());
+            greater_root.borrow_mut().parent = Parent::Rank(greater_rank + 1);
+            UnionResult::Updated
+        }
     }
 }
 
