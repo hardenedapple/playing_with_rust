@@ -1,0 +1,32 @@
+Internal Mutability:
+Implement union()
+
+Change how the data structure is used so that it works by including a `Node`
+element in a user supplied structure.
+    Currently thinking that defining the DisjointSet trait with default
+    implementations of find() and union() relying on a function to get to the
+    `Node` associated with a structure would be enough.
+    I could then just create a structure and give it a function that returns a
+    unique `Node` for my DisjointSet implementation to work with.
+
+Instead of having a value, Nodes have an ID, this is created using an iterator
+that continually increments its value.
+This would mean that while the comparison for equality is still hacky, it is at
+least going to work.
+
+TODO
+Currently I have the Parent enum and the parent member of BaseNode as public.
+This is just for tests, I don't need them as public to satisfy the API I want.
+Hence I should read up on the dynamics of rust testing and see what I can do about removing the
+public declarations.
+
+Order of working on this:
+     Make a working single-threaded version of the program.
+     Make it multi-threaded.
+     Add tests to check the multi-threaded capabilities.
+         (hopefully try and manually specify the order that hypothetical threads would run
+         different functions, probably just throw a load of threads at the problem and see if
+         anything breaks).
+      Implement Kruskal's algorithm (as a test)
+
+Using External Mutability and Raw pointers

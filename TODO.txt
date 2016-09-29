@@ -1,0 +1,36 @@
+Algorithms to code up:
+    Disjoint Set
+    BTree -- already done in the collections crate, so probably not worth it.
+
+
+Things to check out:
+
+    Why did vector.clone() not give me a vector with different data behind it
+    when called in the normal code from the test, but it is working when called
+    in the normal code or when called in the test.
+        Double check the details of this problem -- make sure it's not just
+        me getting confused with a new programming language.
+
+    Can I test a non-public function in a test defined in a seperate module?
+        What is the idiomatic way of testing a non-public function?
+
+    Importing crates from inside a module defined in the same file?
+        i.e. why do I need to use "self::" when using the 'rand' crate in my
+        tests module?
+
+    Is there some way to abuse the slice object if I know the length of data
+    behind it.
+        i.e. If I know the slice represents 10 items at the start of a vector
+        of length 100, can I print the entire vector.
+
+        I doubt it (because of the style of Rust), and I think I'd be a little
+        dissapointed with the language if I could.
+
+    How can I tell rust to print something on ^C interupt without installing
+    signal handlers.
+        I don't even know how to install signal handles in rust (as yet), but I
+        just want to print a message to the console if the user presses ^C in
+        the middle of one of my long-running tests.
+
+        i.e. i'm looking for a flag to pass to Cargo to inform me of the
+        progress that was made before I cancelled the tests.
