@@ -11,6 +11,21 @@
  *          (hopefully try and manually specify the order that hypothetical threads would run
  *          different functions, probably just throw a load of threads at the problem and see if
  *          anything breaks).
+ *       Implement Kruskal's algorithm (as a test)
+ */
+
+/*
+ * Thoughts:
+ *    Work like the Solaris AVL and List implementations.
+ *    The user takes a structure of their own creation, and includes a `Node`
+ *    element in it.
+ *    When finding the root of the set, or combining two roots, then user just
+ *    passes in that element.
+ *    All referencing etc is handled inside the `Node` structures, so the user
+ *    doesn't have to know anything about the implementation.
+ *    This would also mean the user doesn't really have to deal with creating
+ *    `Nodes` or anything like that, and I can actually remove the value type in
+ *    the `Node`.
  */
 
 /*
@@ -29,9 +44,9 @@
  * structure at compile time.
  *      Option 3 -- NO
  *
- * If using Exterior mutability via &mut, I have the same problem -- I can mutably borrow a value
- * that is stored in the structure, but then I would need the structure to contain other Nodes by
- * value, and this is not possible.
+ * If using Exterior mutability via &mut, I have the same problem -- I can
+ * mutably borrow a value that is stored in the structure, but then I would need
+ * the structure to contain other Nodes by value, and this is not possible.
  *      Option 2a -- NO
  *
  * If using Interior mutability -- I think I need to have an interface that takes Rc<> and
@@ -100,9 +115,45 @@ pub fn make_sets<'a, T>(values: Vec<T>) -> Vec<Node<'a, T>> {
         }))))
 }
 
-// impl BaseNode {
-//     pub fn union(&mut self, other: &mut BaseNode<T>) {
-//         let (my_root, their_root = (find(self), find(other));
+pub trait DisjointSet {
+    fn find(self) -> Self;
+    fn union(&mut self, other: &mut Self);
+}
+
+/*
+ * For the look of the API I want find() to take an immutable reference to a
+ * Node, and union() to take a mutable reference to the two Nodes to join.
+ * I don't think it's possible to do this using the RefCell stuff: In order to
+ * return an immutable reference from the find() method I need to have a
+ * reference to something that exists outside of my scope. This means I have to
+ * find my way through using references instead of Rc<> types (because as far as
+ * Rust knows, when using Rc::clone() I'm creating something new and that will
+ * go out of scope when my function returns).
+ * Attempting to do that goes back to the problem I have when deciding how to
+ * implement find() -- I need a mutable reference to modify the structures as I
+ * pass over them, and I need some other sort of reference to follow through the
+ * Nodes.
+ *
+ * The DisjointSet data structure need not be a Node itself -- I could have a
+ * wrapper structure that contains a Node that is the Root.
+ * The use of this data structure is only in finding out whether two Nodes are
+ * in the same set or not, so it would be reasonably useless to work with
+ * separate DisjointSet data structures.
+ */
+impl<'a, T> DisjointSet for Node<'a, T> {
+    fn find(self) -> Self {
+        if let Parent::UpNode(ref mut refcell_val) = self.borrow_mut().parent {
+            let retval = refcell_val.clone().find();
+            *refcell_val = retval.clone();
+            return retval
+        }
+        self
+    }
+
+
+    fn union(&mut self, other: &mut Node<T>) {
+    }
+}
 
 
 #[cfg(test)]

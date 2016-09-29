@@ -11,11 +11,11 @@ fn make_wrapped<'a, T>(item: BaseNode<'a, T>) -> Node<'a, T> {
 /*
  * TODO
  * This test isn't as complete as I'd like.
- * I want it to also check that the Rc pointers point to the same value underneath, and aren't
- * copies of anything.
+ * I want it to also check that the Rc pointers point to the same value
+ * underneath, and aren't copies of anything.
  *
- * The perfect way to do this appears to be through the #![feature(ptr_eq)] feature, but I haven't
- * gotten that to work as yet.
+ * The perfect way to do this appears to be through the #![feature(ptr_eq)]
+ * feature, but I haven't gotten that to work as yet.
  */
 
 #[test]
@@ -25,7 +25,7 @@ fn basic_tests() {
         value: 12,
     };
     // Check that calling find() on the root node returns that very same root node.
-    let full_root = find(make_wrapped(root_node));
+    let full_root = make_wrapped(root_node).find();
     match full_root.borrow_mut().parent {
         Parent::Rank(rankval) => { assert_eq!(rankval, 12) },
         Parent::UpNode(_) => unreachable!(),
@@ -38,7 +38,7 @@ fn basic_tests() {
     };
 
     // Check that calling find() on the child node returns the root node.
-    let child_root = find(make_wrapped(test_node));
+    let child_root = make_wrapped(test_node).find();
     match child_root.borrow_mut().parent {
         Parent::Rank(rankval) => { assert_eq!(rankval, 12) },
         Parent::UpNode(_) => unreachable!(),
