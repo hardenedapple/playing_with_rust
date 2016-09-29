@@ -1,34 +1,4 @@
 /*
- * Disjoint set by using the tree method.
- * In each node we have a pointer to it's parent.
- * If the current node is a root, then we have the root name.
- *
- * Order of working on this:
- *      Make a working single-threaded version of the program.
- *      Add tests for that version.
- *      Make it multi-threaded.
- *      Add tests to check the multi-threaded capabilities.
- *          (hopefully try and manually specify the order that hypothetical threads would run
- *          different functions, probably just throw a load of threads at the problem and see if
- *          anything breaks).
- *       Implement Kruskal's algorithm (as a test)
- */
-
-/*
- * Thoughts:
- *    Work like the Solaris AVL and List implementations.
- *    The user takes a structure of their own creation, and includes a `Node`
- *    element in it.
- *    When finding the root of the set, or combining two roots, then user just
- *    passes in that element.
- *    All referencing etc is handled inside the `Node` structures, so the user
- *    doesn't have to know anything about the implementation.
- *    This would also mean the user doesn't really have to deal with creating
- *    `Nodes` or anything like that, and I can actually remove the value type in
- *    the `Node`.
- */
-
-/*
  * In the `find()` operation, I create a stack of things that I will change on the way down.
  * This is part of the whole design of the algorithm, the Nodes on the way up all have to have
  * their Parent pointer changed to the root of this set.
@@ -63,30 +33,20 @@
  * pointers to see how that works out.
  */
 
-/*
- * TODO
- * Currently I have the Parent enum and the parent member of BaseNode as public.
- * This is just for tests, I don't need them as public to satisfy the API I want.
- * Hence I should read up on the dynamics of rust testing and see what I can do about removing the
- * public declarations.
- */
-
-
 use std::rc::Rc;
 use std::cell::RefCell;
-use std::iter::FromIterator;
 
 pub enum UnionResult {
     NoChange,
     Updated,
 }
 
-pub type Node<'a, T> = Rc<RefCell<BaseNode<'a, T>>>;
+pub type Node<T> = Rc<RefCell<BaseNode<T>>>;
 
 /// The `Parent` type -- represents a parent BaseNode or the name of the current rank.
 #[derive(Debug)]
-pub enum Parent<'a, T: 'a + PartialEq> {
-    UpNode(Node<'a, T>),
+pub enum Parent<T: PartialEq> {
+    UpNode(Node<T>),
     Rank(i32),
 }
 
@@ -96,41 +56,25 @@ pub enum Parent<'a, T: 'a + PartialEq> {
 /// There are no pointers to child items, the only operation implemented is finding out what set an
 /// item belongs to.
 #[derive(Debug)]
-pub struct BaseNode<'a, T: 'a + PartialEq> {
-    pub parent: Parent<'a, T>,
+pub struct BaseNode<T: PartialEq> {
+    pub parent: Parent<T>,
     pub value: T,
 }
 
-impl<'a, T> PartialEq for BaseNode<'a, T> where T: PartialEq {
+impl<T> PartialEq for BaseNode<T> where T: PartialEq {
     fn eq(&self, other: &BaseNode<T>) -> bool {
         self.value == other.value
     }
 }
 
-// In order to allow changing of the current value
-pub fn find<T: PartialEq>(item: Node<T>) -> Node<T> {
-    if let Parent::UpNode(ref mut refcell_val) = item.borrow_mut().parent {
-        let retval = find(refcell_val.clone());
+fn find_root<T: PartialEq>(mynode: Node<T>) -> Node<T> {
+    if let Parent::UpNode(ref mut refcell_val) = mynode.borrow_mut().parent {
+        let retval = find_root(refcell_val.clone());
         *refcell_val = retval.clone();
         return retval
     }
-    item
+    mynode
 }
-
-pub fn make_sets<'a, T: PartialEq>(values: Vec<T>) -> Vec<Node<'a, T>> {
-    Vec::from_iter(values.into_iter().map(
-        |x|
-        Rc::new(RefCell::new(BaseNode {
-            parent: Parent::Rank(0),
-            value: x,
-        }))))
-}
-
-pub trait DisjointSet {
-    fn find(self) -> Self;
-    fn union(self, other: Self) -> UnionResult;
-}
-
 /*
  * For the look of the API I want find() to take an immutable reference to a
  * Node, and union() to take a mutable reference to the two Nodes to join.
@@ -151,16 +95,12 @@ pub trait DisjointSet {
  * in the same set or not, so it would be reasonably useless to work with
  * separate DisjointSet data structures.
  */
-impl<'a, T: PartialEq> DisjointSet for Node<'a, T> {
-    fn find(self) -> Self {
-        if let Parent::UpNode(ref mut refcell_val) = self.borrow_mut().parent {
-            let retval = refcell_val.clone().find();
-            *refcell_val = retval.clone();
-            return retval
-        }
-        self
+pub trait DisjointSet<T: PartialEq> {
+    fn get_node(&self) -> Node<T>;
+    fn find(&self) -> Node<T> {
+        let mynode = self.get_node();
+        find_root(mynode)
     }
-
 
     /*
      * I think I have a bit of a fundamental problem here.
@@ -175,9 +115,8 @@ impl<'a, T: PartialEq> DisjointSet for Node<'a, T> {
      * This isn't really a sensible way, it doesn't proove that elements are the
      * same element, just that they are equal in some manner.
      */
-    fn union(self, other: Node<'a, T>) -> UnionResult {
-        let my_root = self.find();
-        let their_root = other.find();
+    fn union(&self, other: &Self) -> UnionResult {
+        let (my_root, their_root) = (self.find(), other.find());
         if my_root == their_root {
             UnionResult::NoChange
         } else {
