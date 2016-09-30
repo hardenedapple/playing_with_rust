@@ -45,35 +45,66 @@ fn basic_tests() {
     assert_eq!(*child_root.borrow(), *root_node.node.borrow());
 }
 
-// #[test]
-// fn create_set() {
-//     let test_values = vec![1u8, 254, 18, 12];
-//     let basic_set = make_sets(test_values.clone());
-//     for (value, node) in test_values.iter().zip(basic_set.iter()) {
-//         assert_eq!(*value, node.borrow().value);
-//         match *node.borrow() {
-//             Parent::Rank(0) => {},
-//             _ => unreachable!(),
-//         };
-//     };
+#[derive(Debug)]
+struct Node {
+    value: u32,
+    set_type: Element,
+}
 
-//     let union_res = basic_set[1].clone().union(basic_set[2].clone());
-//     assert!(match union_res {
-//         UnionResult::Updated => true,
-//         UnionResult::NoChange => false,
-//     });
+#[derive(Debug)]
+struct Edge<'a> {
+    point_a: &'a Node,
+    point_b: &'a Node,
+    weight: u32,
+}
 
-//     let root: Node<u8> = basic_set[1].clone();
-//     assert!(match *root.borrow() {
-//         Parent::Rank(1) => true,
-//         _ => unreachable!(),
-//     });
+impl DisjointSet for Node {
+    fn get_node(&self) -> Element {
+        self.set_type.clone()
+    }
+}
 
-//     let child: Node<u8> = basic_set[2].clone();
-//     assert!(match *child.borrow() {
-//         Parent::UpNode(ref x) => {
-//             *x == basic_set[1]
-//         },
-//         _ => unreachable!(),
-//     });
-// }
+/* Eventually this will create a random graph to solve, right now it just returns a single graph
+ * that I know the answer kruskals algorithm should return. */
+macro_rules! create_graph {
+    ( $nodes:ident, $edges:ident ) => {
+        let $nodes = (0..3).map(
+            |x|
+            Node {
+                value: x,
+                set_type: Rc::new(RefCell::new(ElementParent::Rank(0)))
+            }).collect::<Vec<_>>();
+
+        let edge_weights = vec![1, 4, 3].into_iter();
+        let $edges = $nodes.iter().zip(&$nodes).zip(edge_weights).map(
+            |((a, b), weight)|
+            Edge { point_a: a, point_b: b, weight: weight }
+            ).collect::<Vec<_>>();
+    };
+}
+
+#[test]
+fn create_set() {
+    create_graph!(nodes, edges);
+    for node in &nodes {
+        match *node.set_type.borrow() {
+            ElementParent::Rank(0) => {},
+            _ => unreachable!(),
+        }
+    }
+
+    let union_res = nodes[1].union(&nodes[2]);
+    assert!(match union_res {
+        UnionResult::Updated => true,
+        UnionResult::NoChange => false,
+    });
+
+    let root: Element = nodes[1].find();
+    assert!(match *root.borrow() {
+        ElementParent::Rank(1) => true,
+        _ => unreachable!(),
+    });
+
+    let other_root: Element = nodes[2].find();
+    assert_eq!(other_root, root);
+}
