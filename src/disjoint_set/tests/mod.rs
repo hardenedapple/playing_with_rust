@@ -12,8 +12,7 @@ fn create_node(val: u8) -> ExampleNode {
     ExampleNode {
         value: val,
         node: Rc::new(RefCell::new(
-            BaseNode { parent: Parent::Rank(0),
-                       value: val }))
+            BaseNode { parent: Parent::Rank(0) }))
     }
 }
 
@@ -42,7 +41,7 @@ fn basic_tests() {
         Parent::Rank(rankval) => { assert_eq!(rankval, 0) },
         Parent::UpNode(_) => unreachable!(),
     };
-    assert_eq!(full_root.borrow_mut().value, 12);
+    assert_eq!(full_root, root_node.node.borrow());
 
     let test_node = create_node(10);
     root_node.union(&test_node);
@@ -53,7 +52,7 @@ fn basic_tests() {
         Parent::Rank(rankval) => { assert_eq!(rankval, 1) },
         Parent::UpNode(_) => unreachable!(),
     };
-    assert_eq!(child_root.borrow_mut().value, 12);
+    assert_eq!(child_root, root_node.node.borrow());
 }
 
 // #[test]

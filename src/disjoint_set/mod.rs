@@ -58,12 +58,11 @@ pub enum Parent<T: PartialEq> {
 #[derive(Debug)]
 pub struct BaseNode<T: PartialEq> {
     pub parent: Parent<T>,
-    pub value: T,
 }
 
 impl<T> PartialEq for BaseNode<T> where T: PartialEq {
     fn eq(&self, other: &BaseNode<T>) -> bool {
-        self.value == other.value
+        self as *const BaseNode<T> == other as *const BaseNode<T>
     }
 }
 
