@@ -2,21 +2,22 @@
 use std::rc::Rc;
 use std::cell::RefCell;
 use disjoint_set::*;
+extern crate rand;
 
 struct ExampleNode {
     value: u8,
-    node: Node,
+    node: Element,
 }
 
 fn create_node(val: u8) -> ExampleNode {
     ExampleNode {
         value: val,
-        node: Rc::new(RefCell::new(Parent::Rank(0)))
+        node: Rc::new(RefCell::new(ElementParent::Rank(0)))
     }
 }
 
 impl DisjointSet for ExampleNode {
-    fn get_node(&self) -> Node {
+    fn get_node(&self) -> Element {
         self.node.clone()
     }
 }
@@ -27,8 +28,8 @@ fn basic_tests() {
     // Check that calling find() on the root node returns that very same root node.
     let full_root = root_node.find();
     match *full_root.borrow_mut() {
-        Parent::Rank(rankval) => { assert_eq!(rankval, 0) },
-        Parent::UpNode(_) => unreachable!(),
+        ElementParent::Rank(rankval) => { assert_eq!(rankval, 0) },
+        ElementParent::UpElement(_) => unreachable!(),
     };
     assert_eq!(*full_root.borrow(), *root_node.node.borrow());
 
@@ -38,8 +39,8 @@ fn basic_tests() {
     // Check that calling find() on the child node returns the root node.
     let child_root = test_node.find();
     match *child_root.borrow_mut() {
-        Parent::Rank(rankval) => { assert_eq!(rankval, 1) },
-        Parent::UpNode(_) => unreachable!(),
+        ElementParent::Rank(rankval) => { assert_eq!(rankval, 1) },
+        ElementParent::UpElement(_) => unreachable!(),
     };
     assert_eq!(*child_root.borrow(), *root_node.node.borrow());
 }

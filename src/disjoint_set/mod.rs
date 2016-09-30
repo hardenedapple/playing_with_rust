@@ -1,12 +1,12 @@
 /*
  * In the `find()` operation, I create a stack of things that I will change on the way down.
- * This is part of the whole design of the algorithm, the Nodes on the way up all have to have
- * their Parent pointer changed to the root of this set.
+ * This is part of the whole design of the algorithm, the Elements on the way up all have to have
+ * their ElementParent pointer changed to the root of this set.
  *
  * This stack must be of values that I can mutate the underlying structure with.
  *      Interior mutability (RefCell and the like)
  *      Exterior mutability (&mut or *mut)
- *      The actual values themselves (mut Node)
+ *      The actual values themselves (mut Element)
  *
  * The only access to the values I have in this function is from the structure that I'm following.
  * Hence, in order to have full access to the actual value, the value needs to be in the structure.
@@ -16,12 +16,8 @@
  *
  * If using Exterior mutability via &mut, I have the same problem -- I can
  * mutably borrow a value that is stored in the structure, but then I would need
- * the structure to contain other Nodes by value, and this is not possible.
+ * the structure to contain other Elements by value, and this is not possible.
  *      Option 2a -- NO
- *
- * If using Interior mutability -- I think I need to have an interface that takes Rc<> and
- * RefCell<> types.
- * This isn't *really* a problem, but I don't like it.
  *
  * I'll try working with raw pointers (like the rust BTree does
  * http://cglab.ca/~abeinges/blah/rust-btree-case/ ), in the near future, and see how that turns
@@ -41,23 +37,23 @@ pub enum UnionResult {
     Updated,
 }
 
-pub type Node = Rc<RefCell<Parent>>;
+pub type Element = Rc<RefCell<ElementParent>>;
 
-/// The `Parent` type -- represents a Node or the name of the current rank.
+/// The `ElementParent` type -- represents a Element or the name of the current rank.
 #[derive(Debug)]
-pub enum Parent {
-    UpNode(Node),
+pub enum ElementParent {
+    UpElement(Element),
     Rank(i32),
 }
 
-impl PartialEq for Parent {
-    fn eq(&self, other: &Parent) -> bool {
-        self as *const Parent == other as *const Parent
+impl PartialEq for ElementParent {
+    fn eq(&self, other: &ElementParent) -> bool {
+        self as *const ElementParent == other as *const ElementParent
     }
 }
 
-fn find_root(mynode: Node) -> Node {
-    if let Parent::UpNode(ref mut refcell_val) = *mynode.borrow_mut() {
+fn find_root(mynode: Element) -> Element {
+    if let ElementParent::UpElement(ref mut refcell_val) = *mynode.borrow_mut() {
         let retval = find_root(refcell_val.clone());
         *refcell_val = retval.clone();
         return retval
@@ -66,8 +62,9 @@ fn find_root(mynode: Node) -> Node {
 }
 
 pub trait DisjointSet {
-    fn get_node(&self) -> Node;
-    fn find(&self) -> Node {
+    fn get_node(&self) -> Element;
+
+    fn find(&self) -> Element {
         let mynode = self.get_node();
         find_root(mynode)
     }
@@ -80,11 +77,11 @@ pub trait DisjointSet {
             // TODO
             //   Make this neat, currently it's very ugly.
             let my_rank = match *my_root.borrow() {
-                Parent::Rank(x) => x,
+                ElementParent::Rank(x) => x,
                 _ => unreachable!(),
             };
             let their_rank = match *their_root.borrow() {
-                Parent::Rank(x) => x,
+                ElementParent::Rank(x) => x,
                 _ => unreachable!(),
             };
             let (greater_root, greater_rank, lesser_root) =
@@ -93,8 +90,8 @@ pub trait DisjointSet {
                 } else {
                     (my_root, my_rank, their_root)
                 };
-            *lesser_root.borrow_mut() = Parent::UpNode(greater_root.clone());
-            *greater_root.borrow_mut() = Parent::Rank(greater_rank + 1);
+            *lesser_root.borrow_mut() = ElementParent::UpElement(greater_root.clone());
+            *greater_root.borrow_mut() = ElementParent::Rank(greater_rank + 1);
             UnionResult::Updated
         }
     }
