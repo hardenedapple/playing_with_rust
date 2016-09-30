@@ -5,54 +5,43 @@ use disjoint_set::*;
 
 struct ExampleNode {
     value: u8,
-    node: Node<u8>,
+    node: Node,
 }
 
 fn create_node(val: u8) -> ExampleNode {
     ExampleNode {
         value: val,
-        node: Rc::new(RefCell::new(
-            BaseNode { parent: Parent::Rank(0) }))
+        node: Rc::new(RefCell::new(Parent::Rank(0)))
     }
 }
 
-impl DisjointSet<u8> for ExampleNode {
-    fn get_node(&self) -> Node<u8> {
+impl DisjointSet for ExampleNode {
+    fn get_node(&self) -> Node {
         self.node.clone()
     }
 }
-
-/*
- * TODO
- * This test isn't as complete as I'd like.
- * I want it to also check that the Rc pointers point to the same value
- * underneath, and aren't copies of anything.
- *
- * The perfect way to do this appears to be through the #![feature(ptr_eq)]
- * feature, but I haven't gotten that to work as yet.
- */
 
 #[test]
 fn basic_tests() {
     let root_node = create_node(12);
     // Check that calling find() on the root node returns that very same root node.
     let full_root = root_node.find();
-    match full_root.borrow_mut().parent {
+    match *full_root.borrow_mut() {
         Parent::Rank(rankval) => { assert_eq!(rankval, 0) },
         Parent::UpNode(_) => unreachable!(),
     };
-    assert_eq!(full_root, root_node.node.borrow());
+    assert_eq!(*full_root.borrow(), *root_node.node.borrow());
 
     let test_node = create_node(10);
     root_node.union(&test_node);
 
     // Check that calling find() on the child node returns the root node.
     let child_root = test_node.find();
-    match child_root.borrow_mut().parent {
+    match *child_root.borrow_mut() {
         Parent::Rank(rankval) => { assert_eq!(rankval, 1) },
         Parent::UpNode(_) => unreachable!(),
     };
-    assert_eq!(child_root, root_node.node.borrow());
+    assert_eq!(*child_root.borrow(), *root_node.node.borrow());
 }
 
 // #[test]
@@ -61,7 +50,7 @@ fn basic_tests() {
 //     let basic_set = make_sets(test_values.clone());
 //     for (value, node) in test_values.iter().zip(basic_set.iter()) {
 //         assert_eq!(*value, node.borrow().value);
-//         match node.borrow().parent {
+//         match *node.borrow() {
 //             Parent::Rank(0) => {},
 //             _ => unreachable!(),
 //         };
@@ -74,13 +63,13 @@ fn basic_tests() {
 //     });
 
 //     let root: Node<u8> = basic_set[1].clone();
-//     assert!(match root.borrow().parent {
+//     assert!(match *root.borrow() {
 //         Parent::Rank(1) => true,
 //         _ => unreachable!(),
 //     });
 
 //     let child: Node<u8> = basic_set[2].clone();
-//     assert!(match child.borrow().parent {
+//     assert!(match *child.borrow() {
 //         Parent::UpNode(ref x) => {
 //             *x == basic_set[1]
 //         },
