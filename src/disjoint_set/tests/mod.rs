@@ -1,5 +1,5 @@
-#[allow(dead_code)]
 use std::rc::Rc;
+use std::cmp::Ordering;
 use std::cell::RefCell;
 use disjoint_set::*;
 extern crate rand;
@@ -45,6 +45,12 @@ fn basic_tests() {
     assert_eq!(*child_root.borrow(), *root_node.node.borrow());
 }
 
+/*
+ * Implementation of Kruskal's algorithm.
+ *      Have a set of edges and a set of Graph Nodes
+ *      The Node structure contains an 'disjoint_set::Element' struct as a member
+ *      We use this member to create disjoint sets of Nodes
+ */
 #[derive(Debug)]
 struct Node {
     value: u32,
@@ -64,10 +70,39 @@ impl DisjointSet for Node {
     }
 }
 
-/* Eventually this will create a random graph to solve, right now it just returns a single graph
- * that I know the answer kruskals algorithm should return. */
+impl<'a> PartialEq for Edge<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        self.weight == other.weight
+    }
+}
+impl<'a> Eq for Edge<'a> {}
+
+impl<'a> PartialOrd for Edge<'a> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.weight.cmp(&other.weight))
+    }
+}
+
+impl<'a> Ord for Edge<'a> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.weight.cmp(&other.weight)
+    }
+}
+
+/*
+ * Eventually this will create a random graph to solve, right now it just returns a single graph
+ * that I know the answer kruskals algorithm should return.
+ * 
+ * Creates a set of edges ordered by weight so it's easier to implement Kruskal's algorithm.
+ */
 macro_rules! create_graph {
     ( $nodes:ident, $edges:ident ) => {
+        /*
+         * Randomness nature, when I finally get round to making this actually random.
+         *      - It should be possible to create a non-connected graph ( < 40% likely).
+         *      - Equally likely two have an edge between any two nodes.
+         *      - Weight of each edge should be random (this is easy to ensure).
+         */
         let $nodes = (0..3).map(
             |x|
             Node {
@@ -75,11 +110,19 @@ macro_rules! create_graph {
                 set_type: Rc::new(RefCell::new(ElementParent::Rank(0)))
             }).collect::<Vec<_>>();
 
-        let edge_weights = vec![1, 4, 3].into_iter();
-        let $edges = $nodes.iter().zip(&$nodes).zip(edge_weights).map(
-            |((a, b), weight)|
-            Edge { point_a: a, point_b: b, weight: weight }
-            ).collect::<Vec<_>>();
+        let mut edge_weights = vec![1, 4, 3].into_iter();
+        let mut $edges = Vec::<Edge>::new();
+        'outer: for (index, start) in $nodes.iter().enumerate() {
+            for end in &$nodes[index+1 ..] {
+                // Never going to happen at the moment -- will eventually need to be accounted for.
+                let next_weight = match edge_weights.next() {
+                    Some(weight) => weight,
+                    None => break 'outer,
+                };
+                $edges.push(Edge { point_a: start, point_b: end, weight: next_weight })
+            }
+        }
+        $edges.sort();
     };
 }
 
