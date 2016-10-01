@@ -2,6 +2,14 @@ Algorithms to code up:
     Disjoint Set
     BTree -- already done in the collections crate, so probably not worth it.
 
+Options for making graphs in Rust:
+    Some writing on the subject
+        https://github.com/nrc/r4cppp/blob/master/graphs/README.md
+        http://smallcultfollowing.com/babysteps/blog/2015/04/06/modeling-graphs-in-rust-using-vector-indices/
+    Rc<RefCell<>> (or Rc<RwLock<>>)
+    Store everything in an arena (e.g. libarena)
+    Instead of having references, use indices into a Vec<T> to access the data.
+
 
 Things to check out:
 
