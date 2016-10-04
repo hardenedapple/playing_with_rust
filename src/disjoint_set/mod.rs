@@ -31,6 +31,7 @@
 
 use std::rc::Rc;
 use std::cell::RefCell;
+use std::hash::{Hash,Hasher};
 
 pub enum UnionResult {
     NoChange,
@@ -40,7 +41,7 @@ pub enum UnionResult {
 pub type Element = Rc<RefCell<ElementParent>>;
 
 /// The `ElementParent` type -- represents a Element or the name of the current rank.
-#[derive(Debug)]
+#[derive(Debug, Eq)]
 pub enum ElementParent {
     UpElement(Element),
     Rank(i32),
@@ -49,6 +50,12 @@ pub enum ElementParent {
 impl PartialEq for ElementParent {
     fn eq(&self, other: &ElementParent) -> bool {
         self as *const ElementParent == other as *const ElementParent
+    }
+}
+
+impl Hash for ElementParent {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        (self as *const ElementParent).hash(state);
     }
 }
 

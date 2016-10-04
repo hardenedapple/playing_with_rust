@@ -1,6 +1,9 @@
 use std::rc::Rc;
 use std::cmp::Ordering;
 use std::cell::RefCell;
+use std::collections::HashSet;
+use std::iter::FromIterator;
+use std::hash::{Hash,Hasher};
 use disjoint_set::*;
 extern crate rand;
 
@@ -51,10 +54,17 @@ fn basic_tests() {
  *      The Node structure contains an 'disjoint_set::Element' struct as a member
  *      We use this member to create disjoint sets of Nodes
  */
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 struct Node {
     value: u32,
     set_type: Element,
+}
+
+impl Hash for Node {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.value.hash(state);
+        self.set_type.borrow().hash(state);
+    }
 }
 
 #[derive(Debug)]
@@ -93,7 +103,10 @@ impl<'a> Ord for Edge<'a> {
  * Eventually this will create a random graph to solve, right now it just returns a single graph
  * that I know the answer kruskals algorithm should return.
  * 
- * Creates a set of edges ordered by weight so it's easier to implement Kruskal's algorithm.
+ * Creates a set of edges ordered by weight to facilitate Kruskal's algorithm.
+ *
+ * This needs to be a macro rather than a function so I can "return" a set of Node structures *and*
+ * a set of Edge structures that have references to them.
  */
 macro_rules! create_graph {
     ( $nodes:ident, $edges:ident ) => {
@@ -126,8 +139,41 @@ macro_rules! create_graph {
     };
 }
 
+/*
+ * The vectors are of a given lifetime. This is also the lifetime of the Nodes in the first vector.
+ * Because it's the lifetime of the nodes in the first vector, it's also the lifetime parameter of
+ * the Edge structures.
+ */
+fn kruskals<'a>(nodes: &'a Vec<Node>, edges: &'a Vec<Edge<'a>>) -> Vec<&'a Edge<'a>> {
+    let mut retval = Vec::new();
+    let mut nodes_left: HashSet<&Node> = HashSet::from_iter(nodes);
+    
+    // Know that the edges are ordered by weight, so this takes the smallest weight.
+    for edge in edges {
+        if edge.point_a.find() == edge.point_b.find() { continue; }
+        edge.point_a.union(edge.point_b);
+        retval.push(edge);
+        nodes_left.remove(edge.point_a);
+        nodes_left.remove(edge.point_b);
+        if nodes_left.is_empty() { break; }
+    }
+
+    retval
+}
+
+/*
+ * Currently just checks that I got the known answer to the fixed question.
+ * In the future this function actually needs to calculate some stuff.
+ */
+fn is_min_span_tree<'a>(nodes: &'a Vec<Node>, edges: &'a Vec<Edge<'a>>, mintree: &Vec<&'a Edge<'a>>)
+    -> bool {
+        mintree.len() == 2 && *mintree[0] == edges[0] && *mintree[1] == edges[1]
+        // if nodes.len() <= 1
+        // let maxedge = mintree.last()
+}
+
 #[test]
-fn create_set() {
+fn can_implement_kruskals() {
     create_graph!(nodes, edges);
     for node in &nodes {
         match *node.set_type.borrow() {
@@ -136,18 +182,6 @@ fn create_set() {
         }
     }
 
-    let union_res = nodes[1].union(&nodes[2]);
-    assert!(match union_res {
-        UnionResult::Updated => true,
-        UnionResult::NoChange => false,
-    });
-
-    let root: Element = nodes[1].find();
-    assert!(match *root.borrow() {
-        ElementParent::Rank(1) => true,
-        _ => unreachable!(),
-    });
-
-    let other_root: Element = nodes[2].find();
-    assert_eq!(other_root, root);
+    let mintree = kruskals(&nodes, &edges);
+    assert!(is_min_span_tree(&nodes, &edges, &mintree));
 }
