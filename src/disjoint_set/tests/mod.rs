@@ -144,7 +144,8 @@ macro_rules! create_graph {
  * Because it's the lifetime of the nodes in the first vector, it's also the lifetime parameter of
  * the Edge structures.
  */
-fn kruskals<'a>(nodes: &'a Vec<Node>, edges: &'a Vec<Edge<'a>>) -> Vec<&'a Edge<'a>> {
+fn kruskals<'a>(nodes: &'a Vec<Node>, edges: &'a Vec<Edge<'a>>)
+  -> Result<Vec<&'a Edge<'a>>, Vec<&'a Edge<'a>>> {
     let mut retval = Vec::new();
     let mut nodes_left: HashSet<&Node> = HashSet::from_iter(nodes);
     
@@ -158,7 +159,11 @@ fn kruskals<'a>(nodes: &'a Vec<Node>, edges: &'a Vec<Edge<'a>>) -> Vec<&'a Edge<
         if nodes_left.is_empty() { break; }
     }
 
-    retval
+    if nodes_left.is_empty() {
+        Ok(retval)
+    } else {
+        Err(retval)
+    }
 }
 
 /*
@@ -168,8 +173,107 @@ fn kruskals<'a>(nodes: &'a Vec<Node>, edges: &'a Vec<Edge<'a>>) -> Vec<&'a Edge<
 fn is_min_span_tree<'a>(nodes: &'a Vec<Node>, edges: &'a Vec<Edge<'a>>, mintree: &Vec<&'a Edge<'a>>)
     -> bool {
         mintree.len() == 2 && *mintree[0] == edges[0] && *mintree[1] == edges[1]
-        // if nodes.len() <= 1
-        // let maxedge = mintree.last()
+        // if nodes.len() <= 1 {
+        //     mintree.len() == 1
+        // } else {
+        //     let maxedge = mintree.last()
+        //     // mintree is a MST iff for every edge (u, v) not in mintree, the path between u and
+        //     // v in mintree
+        // }
+}
+
+/*
+ * TODO
+ *      I believe this function checks if something is a minimum spanning tree by a reverse of
+ *      kruskals algorithm.
+ *          Proove this.
+ */
+fn no_missing_edges<'a>(edges: &'a Vec<Edge<'a>>, mintree: &'a Vec<&'a Edge<'a>>) -> bool {
+    /*
+     * Find set difference of edges and mintree (elements in edges not in mintree, all elements in
+     * mintree should be in edges).
+     * For each edge in this difference, unless both Nodes are part of an Edge in mintree, return
+     * false.
+     * Otherwise, return true.
+     */
+    let mut observed_nodes = HashSet::new();
+    let mut edges_left = edges.iter();
+
+    /*
+     * Use the fact that both edges and mintree are ordered by weight to assert some invariants
+     * like when an edge is not taken then both nodes should already be in the graph.
+     */
+    'outer: for tree_edge in mintree.into_iter() {
+        // If both of these nodes are already in the MST candidate, then this edge is superfluous.
+        if !(observed_nodes.insert(tree_edge.point_a) ||
+             observed_nodes.insert(tree_edge.point_b)) {
+            return false;
+        }
+
+        /*
+         * TODO
+         *      Account for equal weight elements.
+         *          At the moment this works because the equal weight elements are in the same
+         *          order in both iterators (due to how I create them), but that's quite a brittle
+         *          invariant, and I could well change it in the future.
+         */
+        while match edges_left.next() {
+            Some(graph_edge) => {
+                if graph_edge as *const Edge == *tree_edge as *const Edge {
+                    // This edge in the candidate MST is the next smallest edge in the graph.
+                    continue 'outer;
+                } else if graph_edge > *tree_edge {
+                    // From the invariant that the edges are in order, the candidate MST contains
+                    // an edge not in the graph -- doesn't make sense, return False.
+                    return false;
+                } else {
+                    // This edge is not in the candidate MST, and has a smaller weight than any of
+                    // the edges we haven't accounted for in the MST so far.
+                    //  TODO -- or equal, see above
+                    // The nodes it connects must have already been seen (by a reverse of the
+                    // argument that proves kruskals algorithm).
+                    //  TODO -- unless equal, see above
+                    //
+                    // Also, there must be a path between point_a and point_b in the nodes seen at
+                    // the moment. This is the condition for an MST.
+                    //  TODO -- I don't check this
+                    if !(observed_nodes.contains(graph_edge.point_a) &&
+                         observed_nodes.contains(graph_edge.point_b)) {
+                        return false;
+                    }
+                    true
+                }
+
+
+            },
+            None => {
+                /*
+                 * There are no more edges in the graph, but the MST has not been accounted for?
+                 * Means there is at least on edge in the MST not in the graph, and hence that
+                 * everything is broken, return false.
+                 */
+                return false
+            }
+        } {}
+    }
+
+    /*
+     * Check that all other edges connect nodes that are already in the MST.
+     */
+    while match edges_left.next() {
+        Some(graph_edge) => {
+            // This edge is not in the candidate MST.
+            // The nodes it connects must already be there (if implementing kruskals algorithm).
+            if !(observed_nodes.contains(graph_edge.point_a) &&
+                 observed_nodes.contains(graph_edge.point_b)) {
+                    return false;
+            }
+            true
+        },
+        None =>  false 
+    } {}
+
+    true
 }
 
 #[test]
@@ -183,5 +287,8 @@ fn can_implement_kruskals() {
     }
 
     let mintree = kruskals(&nodes, &edges);
-    assert!(is_min_span_tree(&nodes, &edges, &mintree));
+    match mintree {
+        Ok(ref tree) => assert!(is_min_span_tree(&nodes, &edges, &tree)),
+        Err(ref tree) => assert!(no_missing_edges(&edges, &tree)),
+    }
 }
