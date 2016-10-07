@@ -182,6 +182,25 @@ fn is_min_span_tree<'a>(nodes: &'a Vec<Node>, edges: &'a Vec<Edge<'a>>, mintree:
         // }
 }
 
+fn my_split_at<'a>(target: &'a Edge<'a>, edges: &'a [Edge<'a>])
+    -> Option<(&'a [Edge<'a>], &'a [Edge<'a>])> {
+
+    let mut start_index = None;
+    for (index, edge) in edges.iter().enumerate() {
+        if edge == target && start_index.is_none() { start_index = Some(index); }
+        if edge as *const Edge == target as *const Edge { break; }
+        if edge > target { return None; }
+    }
+
+    match start_index {
+        Some(index) => {
+            let (smaller, rest) = edges.split_at(index);
+            Some((smaller, rest))
+        },
+        None => None,
+    }
+}
+
 /*
  * TODO
  *      I believe this function checks if something is a minimum spanning tree by a reverse of
@@ -197,7 +216,8 @@ fn no_missing_edges<'a>(edges: &'a Vec<Edge<'a>>, mintree: &'a Vec<&'a Edge<'a>>
      * Otherwise, return true.
      */
     let mut observed_nodes = HashSet::new();
-    let mut edges_left = edges.iter();
+    let (_, mut remaining_edges) = edges.split_at(0);
+    let mut smaller_edges: &[Edge];
 
     /*
      * Use the fact that both edges and mintree are ordered by weight to assert some invariants
@@ -211,67 +231,50 @@ fn no_missing_edges<'a>(edges: &'a Vec<Edge<'a>>, mintree: &'a Vec<&'a Edge<'a>>
         }
 
         /*
-         * TODO
-         *      Account for equal weight elements.
-         *          At the moment this works because the equal weight elements are in the same
-         *          order in both iterators (due to how I create them), but that's quite a brittle
-         *          invariant, and I could well change it in the future.
+         * my_split_at() returns edges smaller than the target, and a list of all edges of greater
+         * or equal weight to the target.
+         *
+         * NOTE:
+         *      Rather than jump through a bunch of hoops to avoid it, I'm performing a superfluous
+         *      check that edges which are contained in the MST connect two points that are
+         *      connected by the MST.
+         *      I intend to have a little think about this when I'm more familiar with Rust to see
+         *      if there's anything nice I can do to "fix" this.
          */
-        while match edges_left.next() {
-            Some(graph_edge) => {
-                if graph_edge as *const Edge == *tree_edge as *const Edge {
-                    // This edge in the candidate MST is the next smallest edge in the graph.
-                    continue 'outer;
-                } else if graph_edge > *tree_edge {
-                    // From the invariant that the edges are in order, the candidate MST contains
-                    // an edge not in the graph -- doesn't make sense, return False.
-                    return false;
-                } else {
-                    // This edge is not in the candidate MST, and has a smaller weight than any of
-                    // the edges we haven't accounted for in the MST so far.
-                    //  TODO -- or equal, see above
-                    // The nodes it connects must have already been seen (by a reverse of the
-                    // argument that proves kruskals algorithm).
-                    //  TODO -- unless equal, see above
-                    //
-                    // Also, there must be a path between point_a and point_b in the nodes seen at
-                    // the moment. This is the condition for an MST.
-                    //  TODO -- I don't check this
-                    if !(observed_nodes.contains(graph_edge.point_a) &&
-                         observed_nodes.contains(graph_edge.point_b)) {
-                        return false;
-                    }
-                    true
-                }
+        let (left, right) = match my_split_at(tree_edge, remaining_edges) {
+            Some((left, right)) => (left, right),
+            None => return false,
+        };
+        smaller_edges = left;
+        remaining_edges = right;
 
-
-            },
-            None => {
-                /*
-                 * There are no more edges in the graph, but the MST has not been accounted for?
-                 * Means there is at least on edge in the MST not in the graph, and hence that
-                 * everything is broken, return false.
-                 */
-                return false
+        for small_edge in smaller_edges {
+            // This edge is not in the candidate MST, and has a smaller weight than any of
+            // the edges we haven't accounted for in the MST so far.
+            // The nodes it connects must have already been seen (by a reverse of the
+            // argument that proves kruskals algorithm).
+            //
+            // Also, there must be a path between point_a and point_b in the nodes seen at
+            // the moment. This is the condition for an MST.
+            //  TODO -- I don't check this
+            if !(observed_nodes.contains(small_edge.point_a) &&
+                 observed_nodes.contains(small_edge.point_b)) {
+                return false;
             }
-        } {}
+        }
     }
 
     /*
      * Check that all other edges connect nodes that are already in the MST.
      */
-    while match edges_left.next() {
-        Some(graph_edge) => {
-            // This edge is not in the candidate MST.
-            // The nodes it connects must already be there (if implementing kruskals algorithm).
-            if !(observed_nodes.contains(graph_edge.point_a) &&
-                 observed_nodes.contains(graph_edge.point_b)) {
-                    return false;
-            }
-            true
-        },
-        None =>  false 
-    } {}
+    for graph_edge in edges  {
+        // This edge is not in the candidate MST.
+        // The nodes it connects must already be there (if implementing kruskals algorithm).
+        if !(observed_nodes.contains(graph_edge.point_a) &&
+             observed_nodes.contains(graph_edge.point_b)) {
+            return false;
+        }
+    }
 
     true
 }
