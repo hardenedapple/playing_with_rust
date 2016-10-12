@@ -107,6 +107,8 @@ impl<'a> Ord for Edge<'a> {
  *
  * This needs to be a macro rather than a function so I can "return" a set of Node structures *and*
  * a set of Edge structures that have references to them.
+ *
+ * TODO Make this random.
  */
 macro_rules! create_graph {
     ( $nodes:ident, $edges:ident ) => {
@@ -166,22 +168,6 @@ fn kruskals<'a>(nodes: &'a Vec<Node>, edges: &'a Vec<Edge<'a>>)
     }
 }
 
-/*
- * Currently just checks that I got the known answer to the fixed question.
- * In the future this function actually needs to calculate some stuff.
- */
-fn is_min_span_tree<'a>(nodes: &'a Vec<Node>, edges: &'a Vec<Edge<'a>>, mintree: &Vec<&'a Edge<'a>>)
-    -> bool {
-        mintree.len() == 2 && *mintree[0] == edges[0] && *mintree[1] == edges[1]
-        // if nodes.len() <= 1 {
-        //     mintree.len() == 1
-        // } else {
-        //     let maxedge = mintree.last()
-        //     // mintree is a MST iff for every edge (u, v) not in mintree, the path between u and
-        //     // v in mintree
-        // }
-}
-
 fn my_split_at<'a>(target: &'a Edge<'a>, edges: &'a [Edge<'a>])
     -> Option<(&'a [Edge<'a>], &'a [Edge<'a>])> {
 
@@ -207,7 +193,7 @@ fn my_split_at<'a>(target: &'a Edge<'a>, edges: &'a [Edge<'a>])
  *      kruskals algorithm.
  *          Proove this.
  */
-fn no_missing_edges<'a>(edges: &'a Vec<Edge<'a>>, mintree: &'a Vec<&'a Edge<'a>>) -> bool {
+fn is_min_span_tree<'a>(edges: &'a Vec<Edge<'a>>, mintree: &'a Vec<&'a Edge<'a>>) -> bool {
     /*
      * Find set difference of edges and mintree (elements in edges not in mintree, all elements in
      * mintree should be in edges).
@@ -280,6 +266,29 @@ fn no_missing_edges<'a>(edges: &'a Vec<Edge<'a>>, mintree: &'a Vec<&'a Edge<'a>>
     true
 }
 
+/*
+ * TODO
+ *      Make a function that checks there are no edges between nodes in the two different disjoint
+ *      sets.
+ *
+ *      Implement this function without relying on my disjoint_set implementation.
+ *          The whole point is to test that implementation (indirectly through testing the kruskals function above).
+ */
+fn cant_make_join<'a>(nodes: &'a Vec<Node>, edges: &'a Vec<Edge<'a>>) -> bool {
+    // Assert that no edges can join two nodes that don't have the different
+    for edge in edges {
+        assert!(edge.point_a.find() != edge.point_b.find());
+    }
+
+    // Assert that there is some node not connected to another node.
+    let first_set = nodes[0].find();
+    for node in nodes {
+        if first_set != node.find() { return true }
+    }
+    
+    return false;
+}
+
 #[test]
 fn can_implement_kruskals() {
     create_graph!(nodes, edges);
@@ -292,7 +301,7 @@ fn can_implement_kruskals() {
 
     let mintree = kruskals(&nodes, &edges);
     match mintree {
-        Ok(ref tree) => assert!(is_min_span_tree(&nodes, &edges, &tree)),
-        Err(ref tree) => assert!(no_missing_edges(&edges, &tree)),
+        Ok(ref tree) => assert!(is_min_span_tree(&edges, &tree)),
+        Err(_) => assert!(cant_make_join(&nodes, &edges)),
     }
 }
