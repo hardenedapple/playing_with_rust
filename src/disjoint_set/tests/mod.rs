@@ -225,9 +225,9 @@ fn no_missing_edges<'a>(edges: &'a Vec<Edge<'a>>, mintree: &'a Vec<&'a Edge<'a>>
      */
     'outer: for tree_edge in mintree.into_iter() {
         // If both of these nodes are already in the MST candidate, then this edge is superfluous.
-        let mut both_already_in = observed_nodes.insert(tree_edge.point_a);
-        both_already_in |= observed_nodes.insert(tree_edge.point_b);
-        if !both_already_in {
+        let mut either_node_new = observed_nodes.insert(tree_edge.point_a);
+        either_node_new |= observed_nodes.insert(tree_edge.point_b);
+        if !either_node_new {
             return false;
         }
 
