@@ -77,7 +77,7 @@ fn heaps_algorithm<F, T>(mut current: &mut Vec<T>, callback: &mut F)
 #[test]
 fn permuter_handles_empty() {
     let mut myvector = Vec::new();
-    let mut complainer = | _: &mut [u32] | -> ! {
+    let mut complainer = | _: &mut [u32] | {
         panic!("Should not be called");
     };
     heaps_algorithm(&mut myvector, &mut complainer);
@@ -88,7 +88,7 @@ fn permuter_handles_empty() {
                     This should never happen -- investigate please.")]
 fn recursive_call_panics_on_empty() {
     let mut rand_vec: Vec<u32> = random_vector(MAX_PERMUTATION_SIZE);
-    heaps_algorithm_helper(&mut rand_vec, &mut | _: &mut [u32] | -> ! {
+    heaps_algorithm_helper(&mut rand_vec, &mut | _: &mut [u32] | {
         panic!("Not correct panic");
     }, 0);
 }
