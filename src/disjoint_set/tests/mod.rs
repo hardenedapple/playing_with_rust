@@ -135,19 +135,15 @@ macro_rules! create_graph {
 fn kruskals<'a>(nodes: &'a Vec<Node>, edges: &'a Vec<Edge<'a>>)
   -> Result<Vec<&'a Edge<'a>>, Vec<&'a Edge<'a>>> {
     let mut retval = Vec::new();
-    let mut nodes_left: HashSet<&Node> = HashSet::from_iter(nodes);
 
     // Know that the edges are ordered by weight, so this takes the smallest weight.
     for edge in edges {
         if edge.point_a.find() == edge.point_b.find() { continue; }
         edge.point_a.union(edge.point_b);
         retval.push(edge);
-        nodes_left.remove(edge.point_a);
-        nodes_left.remove(edge.point_b);
-        if nodes_left.is_empty() { break; }
     }
 
-    if nodes_left.is_empty() {
+    if nodes.iter().all(|x| x.find() == nodes[0].find()) {
         Ok(retval)
     } else {
         Err(retval)
