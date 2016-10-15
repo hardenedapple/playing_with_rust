@@ -194,6 +194,29 @@ fn path_exists<'a>(current_mst: &'a HashMap<&'a Node, HashSet<&'a Node>>,
     false
 }
 
+macro_rules! add_to_adjacency {
+    ($edge:expr, $partial_mst:expr) => {
+        for (node, othernode) in vec![($edge.point_a, $edge.point_b),
+                                      ($edge.point_b, $edge.point_a)].into_iter() {
+            // TODO -- is there some pretty way of checking this?
+            //    if let takes the mutable reference for the entire if
+            //    expression (including the else branch) which means I can't
+            //    borrow partial_mst mutably in the else branch when I want to
+            //    insert a new adjacency list.
+            let mut flag = false;
+            if let Some(mut set) = $partial_mst.get_mut(node) {
+                set.insert(othernode);
+                flag = true;
+            }
+            if flag == false {
+                let mut temp_adjacency = HashSet::new();
+                temp_adjacency.insert(othernode);
+                $partial_mst.insert(node, temp_adjacency);
+            }
+        }
+    }
+}
+
 fn is_min_span_tree<'a>(edges: &'a Vec<Edge<'a>>, mintree: &'a Vec<&'a Edge<'a>>) -> bool {
     /*
      * Find set difference of edges and mintree (elements in edges not in mintree, all elements in
@@ -202,7 +225,7 @@ fn is_min_span_tree<'a>(edges: &'a Vec<Edge<'a>>, mintree: &'a Vec<&'a Edge<'a>>
      * false.
      * Otherwise, return true.
      */
-    let mut current_mst: HashMap<&Node, HashSet<&Node>> = HashMap::new();
+    let mut partial_mst: HashMap<&Node, HashSet<&Node>> = HashMap::new();
     let (_, mut remaining_edges) = edges.split_at(0);
     let mut smaller_edges: &[Edge];
 
@@ -235,13 +258,13 @@ fn is_min_span_tree<'a>(edges: &'a Vec<Edge<'a>>, mintree: &'a Vec<&'a Edge<'a>>
              * each pair of nodes connected by any edge in the graph must consist
              * only of branches smaller or equal in weight to that edge.
              * The edge we are currently looking at has a smaller weight than
-             * all branches in our candidate MST that are not in current_mst,
-             * and a larger weight than those branches that are in current_mst.
+             * all branches in our candidate MST that are not in partial_mst,
+             * and a larger weight than those branches that are in partial_mst.
              * Hence, in order to proove that our MST is correct, it is
              * sufficient to show is that the nodes this edge connects already
-             * have a path between them in current_mst.
+             * have a path between them in partial_mst.
              */
-            if !path_exists(&current_mst, &small_edge.point_a, &small_edge.point_b) {
+            if !path_exists(&partial_mst, &small_edge.point_a, &small_edge.point_b) {
                 return false;
             }
         }
@@ -249,20 +272,7 @@ fn is_min_span_tree<'a>(edges: &'a Vec<Edge<'a>>, mintree: &'a Vec<&'a Edge<'a>>
         // Store this edge of the MST into the tree so far -- (next iteration
         // will be over the edges in the graph greater than this edge in the MST
         // and smaller than the next edge).
-        for (node, othernode) in vec![(tree_edge.point_a, tree_edge.point_b),
-                                      (tree_edge.point_b, tree_edge.point_a)].into_iter() {
-            // TODO -- is there some pretty way of checking this?
-            let mut flag = false;
-            if let Some(mut set) = current_mst.get_mut(node) {
-                set.insert(othernode);
-                flag = true;
-            }
-            if flag == false {
-                let mut temp_adjacency = HashSet::new();
-                temp_adjacency.insert(othernode);
-                current_mst.insert(node, temp_adjacency);
-            }
-        }
+        add_to_adjacency!(tree_edge, partial_mst);
     }
 
     /*
@@ -271,7 +281,7 @@ fn is_min_span_tree<'a>(edges: &'a Vec<Edge<'a>>, mintree: &'a Vec<&'a Edge<'a>>
     for graph_edge in edges  {
         // This edge is not in the candidate MST.
         // The nodes it connects must be connected by the MST.
-        if !path_exists(&current_mst, &graph_edge.point_a, &graph_edge.point_b) {
+        if !path_exists(&partial_mst, &graph_edge.point_a, &graph_edge.point_b) {
             return false;
         }
     }
