@@ -291,25 +291,30 @@ fn is_min_span_tree<'a>(edges: &'a Vec<Edge<'a>>, mintree: &'a Vec<&'a Edge<'a>>
 
 /*
  * TODO
- *      Make a function that checks there are no edges between nodes in the two different disjoint
- *      sets.
- *
  *      Implement this function without relying on my disjoint_set implementation.
- *          The whole point is to test that implementation (indirectly through testing the kruskals function above).
+ *          The whole point is to test that implementation (indirectly through
+ *          testing the kruskals function above).
  */
 fn cant_make_join<'a>(nodes: &'a Vec<Node>, edges: &'a Vec<Edge<'a>>) -> bool {
-    // Assert that no edges can join two nodes that don't have the different
+    // Check no edges connect two disjoint sets.
+    let mut partial_mst: HashMap<&Node, HashSet<&Node>> = HashMap::new();
     for edge in edges {
-        assert!(edge.point_a.find() != edge.point_b.find());
+        assert!(edge.point_a.find() == edge.point_b.find());
+        add_to_adjacency!(edge, partial_mst);
     }
+
+    let mut retval = false;
 
     // Assert that there is some node not connected to another node.
     let first_set = nodes[0].find();
     for node in nodes {
-        if first_set != node.find() { return true }
+        if first_set != node.find() {
+            assert!(!path_exists(&partial_mst, &nodes[0], node));
+            retval = true;
+        }
     }
-    
-    return false;
+
+    return retval;
 }
 
 #[test]
