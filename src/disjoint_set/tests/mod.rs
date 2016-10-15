@@ -2,9 +2,9 @@ use std::rc::Rc;
 use std::cmp::Ordering;
 use std::cell::RefCell;
 use std::collections::{HashSet, HashMap, VecDeque};
-use std::iter::FromIterator;
 use std::hash::{Hash,Hasher};
 use disjoint_set::*;
+use test_utils::*;
 extern crate rand;
 
 
@@ -98,20 +98,26 @@ fn basic_tests() {
  * This needs to be a macro rather than a function so I can "return" a set of Node structures *and*
  * a set of Edge structures that have references to them.
  *
- * TODO Make this random.
+ * TODO Make the random properties of this function more like what I want.
+ * Intended Randomness nature:
+ *      [X] Possible to create a non-connected graph ( < 40% likely).
+ *      [ ] Equally likely to have an edge between any two nodes.
+ *      [X] Weight of each edge should be random (this is the easiest)
  */
 macro_rules! create_graph {
     ( $nodes:ident, $edges:ident ) => {
-        /*
-         * Intended Randomness nature:
-         *      - Possible to create a non-connected graph ( < 40% likely).
-         *      - Equally likely to have an edge between any two nodes.
-         *      - Weight of each edge should be random (this is the easiest).
-         */
-        let $nodes = (0..3).map(
-            |x| create_node(x)).collect::<Vec<_>>();
+        let $nodes = (0..rand::random::<u8>()).map(
+            |x| create_node(x as u32)).collect::<Vec<_>>();
 
-        let mut edge_weights = vec![1, 4, 3].into_iter();
+        // From how I create the edges, if the length of the weight vector is
+        // ($nodes.len() - 1) or greater then an MST is possible, and otherwise
+        // it's not.
+        // Hence, for the moment, setting our vector to a random length less
+        // than (3 * $nodes.len()) means that we are less than 40% likely to
+        // make a graph that is connected. (because 1/0.4 == 2.5, and the
+        // difference of the - 2 and our actual multiple moves things in the
+        // direction that make it more likely for our graph to be connected).
+        let mut edge_weights = random_vector(3 * $nodes.len()).into_iter();
         let mut $edges = Vec::<Edge>::new();
         'outer: for (index, start) in $nodes.iter().enumerate() {
             for end in &$nodes[index+1 ..] {
@@ -285,12 +291,6 @@ fn is_min_span_tree<'a>(edges: &'a Vec<Edge<'a>>, mintree: &'a Vec<&'a Edge<'a>>
     true
 }
 
-/*
- * TODO
- *      Implement this function without relying on my disjoint_set implementation.
- *          The whole point is to test that implementation (indirectly through
- *          testing the kruskals function above).
- */
 fn cant_make_join<'a>(nodes: &'a Vec<Node>, edges: &'a Vec<Edge<'a>>) -> bool {
     // Check no edges connect two disjoint sets.
     let mut partial_mst: HashMap<&Node, HashSet<&Node>> = HashMap::new();
@@ -305,6 +305,8 @@ fn cant_make_join<'a>(nodes: &'a Vec<Node>, edges: &'a Vec<Edge<'a>>) -> bool {
     let first_set = nodes[0].find();
     for node in nodes {
         if first_set != node.find() {
+            // Here we check there is actually no connection (without relying on
+            // the disjoint_set implementation that we're testing).
             assert!(!path_exists(&partial_mst, &nodes[0], node));
             retval = true;
         }
