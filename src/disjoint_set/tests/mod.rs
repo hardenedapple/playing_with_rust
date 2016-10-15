@@ -7,46 +7,6 @@ use std::hash::{Hash,Hasher};
 use disjoint_set::*;
 extern crate rand;
 
-struct ExampleNode {
-    value: u8,
-    node: Element,
-}
-
-fn create_node(val: u8) -> ExampleNode {
-    ExampleNode {
-        value: val,
-        node: Rc::new(RefCell::new(ElementParent::Rank(0)))
-    }
-}
-
-impl DisjointSet for ExampleNode {
-    fn get_node(&self) -> Element {
-        self.node.clone()
-    }
-}
-
-#[test]
-fn basic_tests() {
-    let root_node = create_node(12);
-    // Check that calling find() on the root node returns that very same root node.
-    let full_root = root_node.find();
-    match *full_root.borrow_mut() {
-        ElementParent::Rank(rankval) => { assert_eq!(rankval, 0) },
-        ElementParent::UpElement(_) => unreachable!(),
-    };
-    assert_eq!(*full_root.borrow(), *root_node.node.borrow());
-
-    let test_node = create_node(10);
-    root_node.union(&test_node);
-
-    // Check that calling find() on the child node returns the root node.
-    let child_root = test_node.find();
-    match *child_root.borrow_mut() {
-        ElementParent::Rank(rankval) => { assert_eq!(rankval, 1) },
-        ElementParent::UpElement(_) => unreachable!(),
-    };
-    assert_eq!(*child_root.borrow(), *root_node.node.borrow());
-}
 
 /*
  * Implementation of Kruskal's algorithm.
@@ -99,6 +59,36 @@ impl<'a> Ord for Edge<'a> {
     }
 }
 
+fn create_node(val: u32) -> Node {
+    Node {
+        value: val,
+        set_type: Rc::new(RefCell::new(ElementParent::Rank(0)))
+    }
+}
+
+#[test]
+fn basic_tests() {
+    let root_node = create_node(12);
+    // Check that calling find() on the root node returns that very same root node.
+    let full_root = root_node.find();
+    match *full_root.borrow_mut() {
+        ElementParent::Rank(rankval) => { assert_eq!(rankval, 0) },
+        ElementParent::UpElement(_) => unreachable!(),
+    };
+    assert_eq!(*full_root.borrow(), *root_node.set_type.borrow());
+
+    let test_node = create_node(10);
+    root_node.union(&test_node);
+
+    // Check that calling find() on the child node returns the root node.
+    let child_root = test_node.find();
+    match *child_root.borrow_mut() {
+        ElementParent::Rank(rankval) => { assert_eq!(rankval, 1) },
+        ElementParent::UpElement(_) => unreachable!(),
+    };
+    assert_eq!(*child_root.borrow(), *root_node.set_type.borrow());
+}
+
 /*
  * Eventually this will create a random graph to solve, right now it just returns a single graph
  * that I know the answer kruskals algorithm should return.
@@ -113,17 +103,13 @@ impl<'a> Ord for Edge<'a> {
 macro_rules! create_graph {
     ( $nodes:ident, $edges:ident ) => {
         /*
-         * Randomness nature, when I finally get round to making this actually random.
-         *      - It should be possible to create a non-connected graph ( < 40% likely).
-         *      - Equally likely two have an edge between any two nodes.
-         *      - Weight of each edge should be random (this is easy to ensure).
+         * Intended Randomness nature:
+         *      - Possible to create a non-connected graph ( < 40% likely).
+         *      - Equally likely to have an edge between any two nodes.
+         *      - Weight of each edge should be random (this is the easiest).
          */
         let $nodes = (0..3).map(
-            |x|
-            Node {
-                value: x,
-                set_type: Rc::new(RefCell::new(ElementParent::Rank(0)))
-            }).collect::<Vec<_>>();
+            |x| create_node(x)).collect::<Vec<_>>();
 
         let mut edge_weights = vec![1, 4, 3].into_iter();
         let mut $edges = Vec::<Edge>::new();
