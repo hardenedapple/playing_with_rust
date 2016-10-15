@@ -1,3 +1,9 @@
+Find out how to initialise the random number generator with a known value.
+    This would mean I can print out the seed for my RNG, and if a test fails I
+    can reproduce it (text printed to stdout is ignored when running tests
+    unless the test fails).
+    Places where I need to do this
+
 Algorithms to code up:
     Disjoint Set
     BTree -- already done in the collections crate, so probably not worth it.
