@@ -97,30 +97,36 @@ fn basic_tests() {
  */
 macro_rules! create_graph {
     ( $nodes:ident, $edges:ident ) => {
-        let $nodes = (0..rand::random::<u8>()).map(
-            |x| create_node(x as u32)).collect::<Vec<_>>();
+        // Maximum of 102 elements, this is simply because it takes a long time
+        // to check everything 500 times.
+        let $nodes = (0..((rand::random::<u8>() % 100) as u32 + 2)).map(
+            |x| create_node(x)).collect::<Vec<_>>();
 
-        // From how I create the edges, if the length of the weight vector is
-        // ($nodes.len() - 1) or greater then an MST is possible, and otherwise
-        // it's not.
-        // Hence, for the moment, setting our vector to a random length less
-        // than (3 * $nodes.len()) means that we are less than 40% likely to
-        // make a graph that is connected. (because 1/0.4 == 2.5, and the
-        // difference of the - 2 and our actual multiple moves things in the
-        // direction that make it more likely for our graph to be connected).
-        let mut edge_weights = random_vector(3 * $nodes.len()).into_iter();
+        /*
+         * TODO -- Allow self-edges, it just adds something extra for my code to
+         * watch out for.
+         */
+
+        let mut rng = rand::thread_rng();
+        // TODO -- The length has been chosen by trial and error to get a nice
+        // ratio of connected to disconnected graphs. I get about 4:1 with this
+        // value.
+        // Though I expect I need to increase the number of edges with the
+        // square of the number of nodes to ensure the probability of
+        // connectedness stays constant I have no proof.
+        // TODO -- Find the maths that describes the probability of creating a
+        // connected graph using this algorithm.
+        let mut edge_weights = random_vector(($nodes.len() * $nodes.len()) / 3);
+        edge_weights.sort();
+
         let mut $edges = Vec::<Edge>::new();
-        'outer: for (index, start) in $nodes.iter().enumerate() {
-            for end in &$nodes[index+1 ..] {
-                // Never going to happen at the moment -- will eventually need to be accounted for.
-                let next_weight = match edge_weights.next() {
-                    Some(weight) => weight,
-                    None => break 'outer,
-                };
-                $edges.push(Edge { point_a: start, point_b: end, weight: next_weight })
-            }
+        for weight in edge_weights.into_iter() {
+            let random_nodes  = rand::sample(&mut rng, $nodes.iter(), 2);
+            let (start, end) = (random_nodes[0], random_nodes[1]);
+            // TODO -- for when vector destructuring becomes stable
+            // let [start, end] = rand::sample(&mut rng, $nodes.iter(), 2);
+            $edges.push(Edge { point_a: start, point_b: end, weight: weight })
         }
-        $edges.sort();
     };
 }
 
@@ -308,17 +314,11 @@ fn cant_make_join<'a>(nodes: &'a Vec<Node>, edges: &'a Vec<Edge<'a>>) -> bool {
 
 #[test]
 fn can_implement_kruskals() {
-    create_graph!(nodes, edges);
-    for node in &nodes {
-        match *node.set_type.borrow() {
-            ElementParent::Rank(0) => {},
-            _ => unreachable!(),
+    for _ in 0..500 {
+        create_graph!(nodes, edges);
+        match kruskals(&nodes, &edges) {
+            Ok(ref tree) => assert!(is_min_span_tree(&edges, &tree)),
+            Err(_) => assert!(cant_make_join(&nodes, &edges))
         }
-    }
-
-    let mintree = kruskals(&nodes, &edges);
-    match mintree {
-        Ok(ref tree) => assert!(is_min_span_tree(&edges, &tree)),
-        Err(_) => assert!(cant_make_join(&nodes, &edges)),
     }
 }
