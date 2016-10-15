@@ -1,7 +1,7 @@
 use std::rc::Rc;
 use std::cmp::Ordering;
 use std::cell::RefCell;
-use std::collections::HashSet;
+use std::collections::{HashSet, HashMap, VecDeque};
 use std::iter::FromIterator;
 use std::hash::{Hash,Hasher};
 use disjoint_set::*;
@@ -102,7 +102,7 @@ impl<'a> Ord for Edge<'a> {
 /*
  * Eventually this will create a random graph to solve, right now it just returns a single graph
  * that I know the answer kruskals algorithm should return.
- * 
+ *
  * Creates a set of edges ordered by weight to facilitate Kruskal's algorithm.
  *
  * This needs to be a macro rather than a function so I can "return" a set of Node structures *and*
@@ -150,7 +150,7 @@ fn kruskals<'a>(nodes: &'a Vec<Node>, edges: &'a Vec<Edge<'a>>)
   -> Result<Vec<&'a Edge<'a>>, Vec<&'a Edge<'a>>> {
     let mut retval = Vec::new();
     let mut nodes_left: HashSet<&Node> = HashSet::from_iter(nodes);
-    
+
     // Know that the edges are ordered by weight, so this takes the smallest weight.
     for edge in edges {
         if edge.point_a.find() == edge.point_b.find() { continue; }
@@ -187,12 +187,27 @@ fn my_split_at<'a>(target: &'a Edge<'a>, edges: &'a [Edge<'a>])
     }
 }
 
-/*
- * TODO
- *      I believe this function checks if something is a minimum spanning tree by a reverse of
- *      kruskals algorithm.
- *          Proove this.
- */
+
+fn path_exists<'a>(current_mst: &'a HashMap<&'a Node, HashSet<&'a Node>>,
+                   start: &'a Node, end: &'a Node) -> bool {
+    let mut inspect_elements = VecDeque::new();;
+    let mut seen_elements = HashSet::new();
+
+    inspect_elements.push_back(start);
+    seen_elements.insert(start);
+
+
+    while let Some(next_element) = inspect_elements.pop_front() {
+        if next_element == end { return true; }
+        if let Some(adj_list) = current_mst.get(next_element) {
+            inspect_elements.extend(adj_list.iter()
+                                    .filter(|x| seen_elements.insert(x)));
+        }
+    }
+
+    false
+}
+
 fn is_min_span_tree<'a>(edges: &'a Vec<Edge<'a>>, mintree: &'a Vec<&'a Edge<'a>>) -> bool {
     /*
      * Find set difference of edges and mintree (elements in edges not in mintree, all elements in
@@ -201,7 +216,7 @@ fn is_min_span_tree<'a>(edges: &'a Vec<Edge<'a>>, mintree: &'a Vec<&'a Edge<'a>>
      * false.
      * Otherwise, return true.
      */
-    let mut observed_nodes = HashSet::new();
+    let mut current_mst: HashMap<&Node, HashSet<&Node>> = HashMap::new();
     let (_, mut remaining_edges) = edges.split_at(0);
     let mut smaller_edges: &[Edge];
 
@@ -210,13 +225,6 @@ fn is_min_span_tree<'a>(edges: &'a Vec<Edge<'a>>, mintree: &'a Vec<&'a Edge<'a>>
      * like when an edge is not taken then both nodes should already be in the graph.
      */
     'outer: for tree_edge in mintree.into_iter() {
-        // If both of these nodes are already in the MST candidate, then this edge is superfluous.
-        let mut either_node_new = observed_nodes.insert(tree_edge.point_a);
-        either_node_new |= observed_nodes.insert(tree_edge.point_b);
-        if !either_node_new {
-            return false;
-        }
-
         /*
          * my_split_at() returns edges smaller than the target, and a list of all edges of greater
          * or equal weight to the target.
@@ -236,17 +244,37 @@ fn is_min_span_tree<'a>(edges: &'a Vec<Edge<'a>>, mintree: &'a Vec<&'a Edge<'a>>
         remaining_edges = right;
 
         for small_edge in smaller_edges {
-            // This edge is not in the candidate MST, and has a smaller weight than any of
-            // the edges we haven't accounted for in the MST so far.
-            // The nodes it connects must have already been seen (by a reverse of the
-            // argument that proves kruskals algorithm).
-            //
-            // Also, there must be a path between point_a and point_b in the nodes seen at
-            // the moment. This is the condition for an MST.
-            //  TODO -- I don't check this
-            if !(observed_nodes.contains(small_edge.point_a) &&
-                 observed_nodes.contains(small_edge.point_b)) {
+            /*
+             * The condition for something to be an MST is that the path between
+             * each pair of nodes connected by any edge in the graph must consist
+             * only of branches smaller or equal in weight to that edge.
+             * The edge we are currently looking at has a smaller weight than
+             * all branches in our candidate MST that are not in current_mst,
+             * and a larger weight than those branches that are in current_mst.
+             * Hence, in order to proove that our MST is correct, it is
+             * sufficient to show is that the nodes this edge connects already
+             * have a path between them in current_mst.
+             */
+            if !path_exists(&current_mst, &small_edge.point_a, &small_edge.point_b) {
                 return false;
+            }
+        }
+
+        // Store this edge of the MST into the tree so far -- (next iteration
+        // will be over the edges in the graph greater than this edge in the MST
+        // and smaller than the next edge).
+        for (node, othernode) in vec![(tree_edge.point_a, tree_edge.point_b),
+                                      (tree_edge.point_b, tree_edge.point_a)].into_iter() {
+            // TODO -- is there some pretty way of checking this?
+            let mut flag = false;
+            if let Some(mut set) = current_mst.get_mut(node) {
+                set.insert(othernode);
+                flag = true;
+            }
+            if flag == false {
+                let mut temp_adjacency = HashSet::new();
+                temp_adjacency.insert(othernode);
+                current_mst.insert(node, temp_adjacency);
             }
         }
     }
@@ -256,9 +284,8 @@ fn is_min_span_tree<'a>(edges: &'a Vec<Edge<'a>>, mintree: &'a Vec<&'a Edge<'a>>
      */
     for graph_edge in edges  {
         // This edge is not in the candidate MST.
-        // The nodes it connects must already be there (if implementing kruskals algorithm).
-        if !(observed_nodes.contains(graph_edge.point_a) &&
-             observed_nodes.contains(graph_edge.point_b)) {
+        // The nodes it connects must be connected by the MST.
+        if !path_exists(&current_mst, &graph_edge.point_a, &graph_edge.point_b) {
             return false;
         }
     }
