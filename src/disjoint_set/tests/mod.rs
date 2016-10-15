@@ -8,12 +8,6 @@ use test_utils::*;
 extern crate rand;
 
 
-/*
- * Implementation of Kruskal's algorithm.
- *      Have a set of edges and a set of Graph Nodes
- *      The Node structure contains an 'disjoint_set::Element' struct as a member
- *      We use this member to create disjoint sets of Nodes
- */
 #[derive(Debug, Eq, PartialEq)]
 struct Node {
     value: u32,
@@ -90,9 +84,6 @@ fn basic_tests() {
 }
 
 /*
- * Eventually this will create a random graph to solve, right now it just returns a single graph
- * that I know the answer kruskals algorithm should return.
- *
  * Creates a set of edges ordered by weight to facilitate Kruskal's algorithm.
  *
  * This needs to be a macro rather than a function so I can "return" a set of Node structures *and*
@@ -241,11 +232,9 @@ fn is_min_span_tree<'a>(edges: &'a Vec<Edge<'a>>, mintree: &'a Vec<&'a Edge<'a>>
          * or equal weight to the target.
          *
          * NOTE:
-         *      Rather than jump through a bunch of hoops to avoid it, I'm performing a superfluous
-         *      check that edges which are contained in the MST connect two points that are
-         *      connected by the MST.
-         *      I intend to have a little think about this when I'm more familiar with Rust to see
-         *      if there's anything nice I can do to "fix" this.
+         *      Rather than jump through a bunch of hoops to avoid it, I'm
+         *      checking that a path exists (below) even for edges that are in
+         *      the MST so far.
          */
         let (left, right) = match my_split_at(tree_edge, remaining_edges) {
             Some((left, right)) => (left, right),
@@ -271,9 +260,11 @@ fn is_min_span_tree<'a>(edges: &'a Vec<Edge<'a>>, mintree: &'a Vec<&'a Edge<'a>>
             }
         }
 
-        // Store this edge of the MST into the tree so far -- (next iteration
-        // will be over the edges in the graph greater than this edge in the MST
-        // and smaller than the next edge).
+        /*
+         * Store this edge of the MST into the tree so far -- (next iteration
+         * will be over the edges in the graph greater than this edge in the MST
+         * and smaller than the next edge).
+         */
         add_to_adjacency!(tree_edge, partial_mst);
     }
 
