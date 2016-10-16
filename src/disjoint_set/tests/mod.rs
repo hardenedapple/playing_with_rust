@@ -92,40 +92,32 @@ fn basic_tests() {
  * TODO Make the random properties of this function more like what I want.
  * Intended Randomness nature:
  *      [X] Possible to create a non-connected graph ( < 40% likely).
- *      [ ] Equally likely to have an edge between any two nodes.
+ *      [X] Equally likely to have an edge between any two nodes.
  *      [X] Weight of each edge should be random (this is the easiest)
  */
 macro_rules! create_graph {
     ( $nodes:ident, $edges:ident ) => {
-        // Maximum of 102 elements, this is simply because it takes a long time
-        // to check everything 500 times.
+        // Max of 102 elements in order to avoid taking too long.
         let $nodes = (0..((rand::random::<u8>() % 100) as u32 + 2)).map(
             |x| create_node(x)).collect::<Vec<_>>();
 
-        /*
-         * TODO -- Allow self-edges, it just adds something extra for my code to
-         * watch out for.
-         */
-
-        let mut rng = rand::thread_rng();
-        // TODO -- The length has been chosen by trial and error to get a nice
-        // ratio of connected to disconnected graphs. I get about 4:1 with this
-        // value.
-        // Though I expect I need to increase the number of edges with the
-        // square of the number of nodes to ensure the probability of
-        // connectedness stays constant I have no proof.
-        // TODO -- Find the maths that describes the probability of creating a
-        // connected graph using this algorithm.
         let mut edge_weights = random_vector(($nodes.len() * $nodes.len()) / 3);
         edge_weights.sort();
+        /*
+         * TODO
+         *      I've found by sampling that this number of elements seems to give me a probability
+         *      of a connected graph of just under 4:1.
+         *      I'd like to find the actual mathematical probability of connectedness given these
+         *      parameters.
+         */
 
         let mut $edges = Vec::<Edge>::new();
         for weight in edge_weights.into_iter() {
-            let random_nodes  = rand::sample(&mut rng, $nodes.iter(), 2);
-            let (start, end) = (random_nodes[0], random_nodes[1]);
-            // TODO -- for when vector destructuring becomes stable
-            // let [start, end] = rand::sample(&mut rng, $nodes.iter(), 2);
-            $edges.push(Edge { point_a: start, point_b: end, weight: weight })
+            $edges.push(Edge {
+                point_a: &$nodes[rand::random::<usize>() % $nodes.len()],
+                point_b: &$nodes[rand::random::<usize>() % $nodes.len()],
+                weight: weight
+            })
         }
     };
 }
