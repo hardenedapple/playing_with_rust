@@ -81,7 +81,7 @@ impl <T> VectorPermutations<T> {
                 self.index += 1;
             }
         }
-        
+
         /*
         	We have finished, and are about to return None.
         	To allow repeated use of this structure, we reset the value
@@ -96,11 +96,11 @@ impl <T> VectorPermutations<T> {
         } else {
             self.permutation.swap(num_elements - 1, 0);
         }
-        
+
         for value in self.count.iter_mut() {
         	*value = 0;
         }
-        
+
         self.started = false;
         self.index = 0;
         None

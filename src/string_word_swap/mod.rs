@@ -12,7 +12,7 @@
         When one of those characters was a space, then reverse the characters between the previous
         space and the last character added (accounting for having reversed the letters in this word
         when moving the characters).
-		
+
 	Note:
 		we use [u8] instead of strings because we maintain the order of bytes
 		in the string, and the only special character (space -- byte 32) never
@@ -36,10 +36,10 @@ fn move_buffer_here<T>(sentance: &mut [u8], buffer: T, index: usize)
 
 pub fn string_swap(sentance: &mut [u8]) {
 	if sentance.len() == 0 { return; }
-	
+
 	let mut left_word_buffer: Vec<u8> = Vec::new();
 	let mut right_word_buffer: Vec<u8> = Vec::new();
-	
+
 	let (mut left_index, mut right_index,
 		 mut prev_left_index): (usize, usize, usize) = (0, sentance.len() - 1, 0);
 
@@ -69,7 +69,7 @@ pub fn string_swap(sentance: &mut [u8]) {
 		} else {
 			left_word_buffer.push(cur_left_char);
 		}
-		
+
 		if cur_right_char == ASCII_SPACE {
 			sentance[left_index] = ASCII_SPACE;
 			move_right_buffer!();
@@ -77,11 +77,11 @@ pub fn string_swap(sentance: &mut [u8]) {
 		} else {
 			right_word_buffer.push(cur_right_char);
 		}
-	
+
 		left_index += 1;
 		right_index -= 1;
 	}
-	
+
 	if (left_index == right_index) && (sentance[left_index] == ASCII_SPACE) {
 		move_left_buffer!();
 		move_right_buffer!();
@@ -89,22 +89,22 @@ pub fn string_swap(sentance: &mut [u8]) {
 	}
 
 	if left_index == right_index { left_word_buffer.push(sentance[left_index]); }
-	
+
 	move_buffer_here(sentance,
 					 left_word_buffer.drain(..)
 					 				 .chain(
 					 				 	right_word_buffer.drain(..)
 					 				 					 .rev()),
-					 prev_left_index);	
+					 prev_left_index);
 }
 
 
 pub fn inplace_string_swap(sentance: &mut [u8]) {
 	if sentance.len() == 0 { return; }
-	
+
 	let (mut left_index, mut right_index): (usize, usize) = (0, sentance.len() - 1);
 	let (mut prev_left_index, mut prev_right_index) = (left_index, right_index + 1);
-	
+
 	macro_rules! reverse_right_word {
 		() => {
 				{
@@ -124,14 +124,14 @@ pub fn inplace_string_swap(sentance: &mut [u8]) {
 			};
 		};
 	}
-	
+
 	loop {
 		if left_index >= right_index {
 			break;
 		}
-		
+
 		sentance.swap(right_index, left_index);
-		
+
 		if sentance[right_index] == ASCII_SPACE {
 			reverse_right_word!();
 		}
@@ -146,7 +146,7 @@ pub fn inplace_string_swap(sentance: &mut [u8]) {
 	// Cleanup on the final word
 	if sentance[left_index] == ASCII_SPACE { reverse_left_word!(); }
 	if sentance[right_index] == ASCII_SPACE { reverse_right_word!(); }
-	
+
 	if prev_left_index < prev_right_index {
 		let mut substring = &mut sentance[prev_left_index..prev_right_index];
 		substring.reverse();

@@ -116,7 +116,7 @@ macro_rules! create_graph {
          *      The probability two particular nodes are joined in a given order for each edge is
          *      1/N**2.
          *      In order to allow both directions we multiply by 2.
-         *      The probability we don't join these two edges is then 1 - (2 / N**2) = 
+         *      The probability we don't join these two edges is then 1 - (2 / N**2) =
          *      (N**2 - 2) / N**2 = X.
          *      The probability we haven't joined those two edges in 'n' iterations is X**N.
          *      Hence the probability of two Nodes being connected after 'N' iterations is

@@ -2,7 +2,7 @@
 	Test the string swapping algorithm
 	Mainly by implementing the much simpler method, and testing that
 	the results are the same.
-	
+
 	Have to watch out for double spaces -- the split() method gives you an empty string
 	to represent them.
 */
@@ -45,14 +45,14 @@ fn all_versions_agree(original_sentance: &str) {
 	let mut raw_vector: Vec<u8> = String::from(original_sentance).into_bytes();
 	string_swap(&mut raw_vector);
 	let word_buffered: String = unsafe { String::from_utf8_unchecked(raw_vector) };
-	
-	let simple_version = obvious_word_reversal(original_sentance);	
+
+	let simple_version = obvious_word_reversal(original_sentance);
 	assert_eq!(word_buffered, simple_version); // Check for requiring borrow here
-	
+
 	let mut raw_vector: Vec<u8> = String::from(original_sentance).into_bytes();
 	inplace_string_swap(&mut raw_vector);
 	let inplace_version: String = unsafe { String::from_utf8_unchecked(raw_vector) };
-	
+
 	assert_eq!(inplace_version, simple_version);
 }
 
@@ -96,7 +96,7 @@ fn create_random_sentance(max_size: usize)
 	let mut final_string = String::new();
 	let mut current_position: usize = 0;
 	while let Some(&next_space) = position_iterator.next() {
-		for _ in current_position..next_space {	
+		for _ in current_position..next_space {
 			if let Some(next_char) = initial_sentance.pop() {
 				final_string.push(next_char);
 			} else {
@@ -110,13 +110,13 @@ fn create_random_sentance(max_size: usize)
 	for char in initial_sentance.chars().rev() {
 		final_string.push(char);
 	}
-	
+
 	final_string
 }
 
 #[test]
 fn all_agree_random() {
-	/* 
+	/*
 		TODO
 			Maybe not limit the number of spaces -- maybe both with and without limit.
 	*/
@@ -125,4 +125,4 @@ fn all_agree_random() {
 		all_versions_agree(&next_sentance);
 	}
 }
-	
+
