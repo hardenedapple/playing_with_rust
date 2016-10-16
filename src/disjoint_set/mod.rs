@@ -41,7 +41,7 @@ pub enum UnionResult {
 pub type Element = Rc<RefCell<ElementParent>>;
 
 /// The `ElementParent` type -- represents a Element or the name of the current rank.
-#[derive(Debug, Eq)]
+#[derive(Debug)]
 pub enum ElementParent {
     UpElement(Element),
     Rank(i32),
@@ -52,6 +52,7 @@ impl PartialEq for ElementParent {
         self as *const ElementParent == other as *const ElementParent
     }
 }
+impl Eq for ElementParent {}
 
 impl Hash for ElementParent {
     fn hash<H: Hasher>(&self, state: &mut H) {
