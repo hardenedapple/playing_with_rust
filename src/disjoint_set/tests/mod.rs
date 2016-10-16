@@ -88,12 +88,6 @@ fn basic_tests() {
  *
  * This needs to be a macro rather than a function so I can "return" a set of Node structures *and*
  * a set of Edge structures that have references to them.
- *
- * TODO Make the random properties of this function more like what I want.
- * Intended Randomness nature:
- *      [X] Possible to create a non-connected graph ( < 40% likely).
- *      [X] Equally likely to have an edge between any two nodes.
- *      [X] Weight of each edge should be random (this is the easiest)
  */
 macro_rules! create_graph {
     ( $nodes:ident, $edges:ident ) => {
@@ -154,8 +148,7 @@ macro_rules! create_graph {
          * 100 Nodes   0.8797, 0.852, 1.0
          * 1000 Nodes  inf, inf
          *
-         * It's much closer to a linear relation than a quadratic one, but it's not a linear
-         * relation.
+         * It's much closer to a linear relation than a quadratic one, but it's not linear.
          */
 
         /* NOTE -- This allows multiple edges between the same two Nodes, it's not a problem. */
@@ -211,7 +204,6 @@ fn my_split_at<'a>(target: &'a Edge<'a>, edges: &'a [Edge<'a>])
         None => None,
     }
 }
-
 
 fn path_exists<'a>(current_mst: &'a HashMap<&'a Node, HashSet<&'a Node>>,
                    start: &'a Node, end: &'a Node) -> bool {
@@ -353,6 +345,7 @@ fn cant_make_join<'a>(nodes: &'a Vec<Node>, edges: &'a Vec<Edge<'a>>) -> bool {
 }
 
 #[test]
+#[ignore]
 fn can_implement_kruskals() {
     for _ in 0..500 {
         create_graph!(nodes, edges);
