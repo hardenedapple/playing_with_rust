@@ -1,4 +1,6 @@
-extern crate rand;
+// Publically declare the rand crate here because I (so far) only use it in test modules when I'm
+// already 'use'ing from this module anyway.
+pub extern crate rand;
 use self::rand::Rng;
 /*
 	Recommended maximum sizes for vectors with permutations.

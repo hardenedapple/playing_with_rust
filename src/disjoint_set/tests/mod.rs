@@ -3,9 +3,8 @@ use std::cmp::Ordering;
 use std::cell::RefCell;
 use std::collections::{HashSet, HashMap, VecDeque};
 use std::hash::{Hash,Hasher};
-use disjoint_set::*;
-use test_utils::*;
-extern crate rand;
+use test_utils::{random_vector,rand};
+use super::*;
 
 
 #[derive(Debug, Eq, PartialEq)]

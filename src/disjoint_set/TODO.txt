@@ -2,10 +2,6 @@ Internal Mutability:
 Implement union()
 
 TODO
-Currently I have the Parent enum and the parent member of BaseNode as public.
-This is just for tests, I don't need them as public to satisfy the API I want.
-Hence I should read up on the dynamics of rust testing and see what I can do about removing the
-public declarations.
 
 Order of working on this:
      Make a working single-threaded version of the program.

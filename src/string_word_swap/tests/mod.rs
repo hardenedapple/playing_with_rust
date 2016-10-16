@@ -6,9 +6,8 @@
 	Have to watch out for double spaces -- the split() method gives you an empty string
 	to represent them.
 */
-extern crate rand;
 use super::*;
-use test_utils::random_vector;
+use test_utils::{random_vector,rand};
 
 
 #[test]

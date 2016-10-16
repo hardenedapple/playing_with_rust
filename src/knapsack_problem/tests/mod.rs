@@ -1,6 +1,5 @@
-extern crate rand;
 use knapsack_problem::*;
-use test_utils::{VectorPermutations,random_vector,MAX_PERMUTATION_SIZE};
+use test_utils::{VectorPermutations,random_vector,MAX_PERMUTATION_SIZE,rand};
 const MAX_VECTOR_SIZE: usize = 30;
 
 fn alternate_same_set<T: PartialEq + Ord>(left: &mut Vec<T>, right: &mut Vec<T>) -> bool {
