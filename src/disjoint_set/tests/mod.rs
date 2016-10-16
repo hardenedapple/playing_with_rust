@@ -97,11 +97,11 @@ fn basic_tests() {
  */
 macro_rules! create_graph {
     ( $nodes:ident, $edges:ident ) => {
-        // Max of 102 elements in order to avoid taking too long.
-        let $nodes = (0..((rand::random::<u8>() % 100) as u32 + 2)).map(
+        // Max of 100 elements in order to avoid taking too long.
+        let $nodes = (0..(rand::random::<u32>() % 100)).map(
             |x| create_node(x)).collect::<Vec<_>>();
 
-        let mut edge_weights = random_vector(($nodes.len() * $nodes.len()) / 3);
+        let mut edge_weights = random_vector(10 * $nodes.len());
         edge_weights.sort();
         /*
          * TODO
@@ -109,8 +109,56 @@ macro_rules! create_graph {
          *      of a connected graph of just under 4:1.
          *      I'd like to find the actual mathematical probability of connectedness given these
          *      parameters.
+         *
+         *  The question at
+         *  http://math.stackexchange.com/questions/584228/exact-probability-of-random-graph-being-connected
+         *  gives the formula for the probability that a graph is connected G(n, p) where 'p' is
+         *  the probability of any two edges and 'n' is the number of nodes.
+         *  That question ignores self-edges, but I don't think that matters -- as long as the
+         *  probability of edges between nodes that aren't the same is calculated properly it
+         *  doesn't change any of the reasoning presented in that answer.
+         *  The probability that any two Nodes are joined with an edge when using the method I'm
+         *  using to create edges is 1 - ((n**2 - 2) / n**2)**N where 'N' is the number of
+         *  iterations.
+         *      The probability two particular nodes are joined in a given order for each edge is
+         *      1/N**2.
+         *      In order to allow both directions we multiply by 2.
+         *      The probability we don't join these two edges is then 1 - (2 / N**2) = 
+         *      (N**2 - 2) / N**2 = X.
+         *      The probability we haven't joined those two edges in 'n' iterations is X**N.
+         *      Hence the probability of two Nodes being connected after 'N' iterations is
+         *      1 - X**N.
+         *
+         * Putting that probability into the equation we get from the web page above just changes
+         * the term (1 - p)**(i(n - i)) to (X**N)**(i(n-i)).
+         * This doesn't give me a nice equation that I can just plug the numbers into, it gives me
+         * a recursion relation.
+         *
+         * From tests, I know that the relation is not linear, nor quadratic.
+         * In order to run the tests, take length to be max_length in random_vector() instead of
+         * having a random value, then instead of choosing a random number of nodes set it to a
+         * specific value.
+         * Once these changes have been made, you can create a graph multiple times, changing how
+         * many times a graph is created in can_implement_kruskals() and changing how many nodes
+         * each graph has above.
+         *
+         * The ratio of connected graphs to unconnected graphs is stored below.
+         *
+         * Num weights == 2 * Num Nodes
+         * 10 Nodes   4.30, 4.38, 4.298
+         * 100 Nodes  0.155, 0.164, 0.157
+         * 1000 Nodes  0, 0, 0
+         *
+         * Num weights = (Num Nodes)**40
+         * 10 Nodes    0, 0, 0
+         * 100 Nodes   0.8797, 0.852, 1.0
+         * 1000 Nodes  inf, inf
+         *
+         * It's much closer to a linear relation than a quadratic one, but it's not a linear
+         * relation.
          */
 
+        /* NOTE -- This allows multiple edges between the same two Nodes, it's not a problem. */
         let mut $edges = Vec::<Edge>::new();
         for weight in edge_weights.into_iter() {
             $edges.push(Edge {
