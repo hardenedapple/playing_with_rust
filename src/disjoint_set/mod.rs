@@ -31,6 +31,7 @@
 
 use std::rc::Rc;
 use std::cell::RefCell;
+use std::ops::Deref;
 use std::hash::{Hash,Hasher};
 
 pub enum UnionResult {
@@ -38,7 +39,22 @@ pub enum UnionResult {
     Updated,
 }
 
-pub type Element = Rc<RefCell<ElementParent>>;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Element(Rc<RefCell<ElementParent>>);
+
+impl Element {
+    fn new(start_rank: i32) -> Element {
+        Element(Rc::new(RefCell::new(ElementParent::Rank(start_rank))))
+    }
+}
+
+impl Deref for Element {
+    type Target = RefCell<ElementParent>;
+
+    fn deref(&self) -> &RefCell<ElementParent> {
+        self.0.deref()
+    }
+}
 
 /// The `ElementParent` type -- represents a Element or the name of the current rank.
 #[derive(Debug)]

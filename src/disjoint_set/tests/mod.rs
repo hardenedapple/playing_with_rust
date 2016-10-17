@@ -1,6 +1,4 @@
-use std::rc::Rc;
 use std::cmp::Ordering;
-use std::cell::RefCell;
 use std::collections::{HashSet, HashMap, VecDeque};
 use std::hash::{Hash,Hasher};
 use test_utils::{random_vector,rand};
@@ -55,7 +53,7 @@ impl<'a> Ord for Edge<'a> {
 fn create_node(val: u32) -> Node {
     Node {
         value: val,
-        set_type: Rc::new(RefCell::new(ElementParent::Rank(0)))
+        set_type: Element::new(0),
     }
 }
 
