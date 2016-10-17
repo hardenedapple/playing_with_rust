@@ -67,6 +67,12 @@ impl PartialEq for Element {
 }
 impl Eq for Element {}
 
+impl DisjointSet for Element {
+    fn get_node(&self) -> Element {
+        self.clone()
+    }
+}
+
 /// The `ElementParent` type -- represents a Element or the name of the current rank.
 #[derive(Debug)]
 pub enum ElementParent {
@@ -104,6 +110,18 @@ pub trait DisjointSet {
         find_root(mynode)
     }
 
+    /*
+     * TODO Make this multithreaded
+     *  Currently there are some synchronisation problems (I hadn't written this with
+     *  synchronisation in mind and just hoped it would work when I switched).
+     *
+     *  Between finding the roots with find() and finding the roots' Rank with match {} another
+     *  thread can finish calling union() and have updated the value of either root.
+     *  We would then go into a branch marked unreachable!().
+     *
+     *  Similarly, if another thread joins our greater_root onto a different Element before we
+     *  increment its rank, we have undone that threads work joining the Elements.
+     */
     fn union(&self, other: &Self) -> UnionResult {
         let (my_root, their_root) = (self.find(), other.find());
         if my_root == their_root {

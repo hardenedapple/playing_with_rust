@@ -1,12 +1,11 @@
 use std::cmp::Ordering;
 use std::collections::{HashSet, HashMap, VecDeque};
 use std::hash::{Hash, Hasher};
-use test_utils::{random_vector, seeded_rng};
+use test_utils::{random_vector, rand, seeded_rng};
 use test_utils::rand::Rng;
 use super::*;
 
-
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 struct Node {
     value: u32,
     set_type: Element,
@@ -352,5 +351,65 @@ fn can_implement_kruskals() {
             Ok(ref tree) => assert!(is_min_span_tree(&edges, &tree)),
             Err(_) => assert!(cant_make_join(&nodes, &edges))
         }
+    }
+}
+
+/*
+ * NOTE
+ *      This tests the multi-thread safety of the DisjointSet trait.
+ *      One thing I haven't prooved is that it's useful to have this ability.
+ *      Implementing kruskals algorithm across multiple threads naively would have a heck of a lot
+ *      of locking (each operation needs access to a single set of edges to look at and a single
+ *      hash table of nodes used so far).
+ *      I need a different algorithm to actually speed up the process -- maybe Prims algorithm but
+ *      with a different starting Node for each thread? Get the next smallest edge connecting our
+ *      partial MST to more Nodes and if it joins to another threads partial tree then break
+ *      (wouldn't use the DisjointSet data structure though).
+ *
+ *      My macro of create_graph!() is awkward here because it shares references to nodes in the
+ *      Edges, and this means I can't move the nodes into the Arc<> structures.
+ *      I'll have a further look in the future.
+ */
+#[test]
+fn multi_thread() {
+    use std::thread;
+    use std::sync::{mpsc, Arc};
+
+    let (tx, rx) = mpsc::channel();
+    let rc_nodes = Arc::new(
+        (0..100).map(|x| create_node(x)).collect::<Vec<_>>());
+
+    let mut rng = seeded_rng();
+
+    for _ in 1..(rng.gen::<usize>() % rc_nodes.len()) {
+        let tx = tx.clone();
+        let rc_nodes = rc_nodes.clone();
+        let newseed = rng.gen::<[usize; 4]>();
+        thread::spawn(
+            move | |
+            {
+                let mut rng: rand::StdRng = rand::SeedableRng::from_seed(&newseed as &[usize]);
+                let test_nodes = rand::sample(&mut rng, rc_nodes.iter(), 2);
+                let (node, other) = (test_nodes[0], test_nodes[1]);
+
+                let original_root = node.find();
+                node.union(&other);
+                let new_root = node.find();
+
+                match tx.send((original_root, new_root)) {
+                    Ok(_) => {},
+                    Err(_) => panic!("Send failed!!"),
+                }
+            });
+    }
+    /* Make sure the transmit end is closed in our thread so the channel is closed once the above
+     * threads exit. This means the iterator over the receiving end eventually returns None. */
+    drop(tx);
+    /* Wait until the other threads have all finished. Otherwise a union() operation could be run
+     * in between our two find() operations, and we would have a failure. */
+    let element_pairs: Vec<(Element, Element)> = rx.iter().collect();
+    for (start, end) in element_pairs {
+        /* NOTE Here we're using the DisjointSet implementation of the Element structure. */
+        assert_eq!(start.find(), end.find());
     }
 }
