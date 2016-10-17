@@ -15,7 +15,7 @@ struct Node {
 impl Hash for Node {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.value.hash(state);
-        self.set_type.borrow().hash(state);
+        self.set_type.read().unwrap().hash(state);
     }
 }
 
@@ -63,22 +63,22 @@ fn basic_tests() {
     let root_node = create_node(12);
     // Check that calling find() on the root node returns that very same root node.
     let full_root = root_node.find();
-    match *full_root.borrow_mut() {
+    match *full_root.write().unwrap() {
         ElementParent::Rank(rankval) => { assert_eq!(rankval, 0) },
         ElementParent::UpElement(_) => unreachable!(),
     };
-    assert_eq!(*full_root.borrow(), *root_node.set_type.borrow());
+    assert_eq!(*full_root.read().unwrap(), *root_node.set_type.read().unwrap());
 
     let test_node = create_node(10);
     root_node.union(&test_node);
 
     // Check that calling find() on the child node returns the root node.
     let child_root = test_node.find();
-    match *child_root.borrow_mut() {
+    match *child_root.write().unwrap() {
         ElementParent::Rank(rankval) => { assert_eq!(rankval, 1) },
         ElementParent::UpElement(_) => unreachable!(),
     };
-    assert_eq!(*child_root.borrow(), *root_node.set_type.borrow());
+    assert_eq!(*child_root.read().unwrap(), *root_node.set_type.read().unwrap());
 }
 
 /*

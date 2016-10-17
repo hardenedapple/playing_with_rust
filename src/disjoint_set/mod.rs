@@ -29,8 +29,7 @@
  * pointers to see how that works out.
  */
 
-use std::rc::Rc;
-use std::cell::RefCell;
+use std::sync::{Arc, RwLock};
 use std::ops::Deref;
 use std::hash::{Hash,Hasher};
 
@@ -39,22 +38,34 @@ pub enum UnionResult {
     Updated,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Element(Rc<RefCell<ElementParent>>);
+#[derive(Debug, Clone)]
+pub struct Element(Arc<RwLock<ElementParent>>);
 
 impl Element {
-    fn new(start_rank: i32) -> Element {
-        Element(Rc::new(RefCell::new(ElementParent::Rank(start_rank))))
+    pub fn new(start_rank: i32) -> Element {
+        Element(Arc::new(RwLock::new(ElementParent::Rank(start_rank))))
     }
 }
 
 impl Deref for Element {
-    type Target = RefCell<ElementParent>;
+    type Target = RwLock<ElementParent>;
 
-    fn deref(&self) -> &RefCell<ElementParent> {
+    fn deref(&self) -> &RwLock<ElementParent> {
         self.0.deref()
     }
 }
+
+impl PartialEq for Element {
+    /* NOTE Not 100% sure that this is sensible. It may be surprising to obtain a lock in something
+     * as innocuous as an equality check. A hypothetical person using this code could get deadlock
+     * without understanding why. */
+    fn eq(&self, other: &Self) -> bool {
+        // Using &* to take advantage of the Deref of RwLockReadGuard<>
+        &*(self.read().unwrap()) as *const ElementParent ==
+            &*(other.read().unwrap()) as *const ElementParent
+    }
+}
+impl Eq for Element {}
 
 /// The `ElementParent` type -- represents a Element or the name of the current rank.
 #[derive(Debug)]
@@ -77,7 +88,7 @@ impl Hash for ElementParent {
 }
 
 fn find_root(mynode: Element) -> Element {
-    if let ElementParent::UpElement(ref mut refcell_val) = *mynode.borrow_mut() {
+    if let ElementParent::UpElement(ref mut refcell_val) = *mynode.write().unwrap() {
         let retval = find_root(refcell_val.clone());
         *refcell_val = retval.clone();
         return retval
@@ -98,13 +109,12 @@ pub trait DisjointSet {
         if my_root == their_root {
             UnionResult::NoChange
         } else {
-            // TODO
-            //   Make this neat, currently it's very ugly.
-            let my_rank = match *my_root.borrow() {
+            // TODO Make this neat, currently it's very ugly.
+            let my_rank = match *my_root.read().unwrap() {
                 ElementParent::Rank(x) => x,
                 _ => unreachable!(),
             };
-            let their_rank = match *their_root.borrow() {
+            let their_rank = match *their_root.read().unwrap() {
                 ElementParent::Rank(x) => x,
                 _ => unreachable!(),
             };
@@ -114,8 +124,8 @@ pub trait DisjointSet {
                 } else {
                     (my_root, my_rank, their_root)
                 };
-            *lesser_root.borrow_mut() = ElementParent::UpElement(greater_root.clone());
-            *greater_root.borrow_mut() = ElementParent::Rank(greater_rank + 1);
+            *lesser_root.write().unwrap() = ElementParent::UpElement(greater_root.clone());
+            *greater_root.write().unwrap() = ElementParent::Rank(greater_rank + 1);
             UnionResult::Updated
         }
     }
