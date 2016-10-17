@@ -7,7 +7,7 @@
 	to represent them.
 */
 use super::*;
-use test_utils::{random_vector,rand};
+use test_utils::random_vector;
 
 
 #[test]
@@ -90,7 +90,7 @@ fn create_random_sentance(max_size: usize)
 										"abcdefghijklmnopqrstuvwxyz\
 										0123456789\
 										ABCDEFGHIJKLMNOPQRSTUVWXYZ");
-	let mut rand_vec = random_vector(rand::random::<usize>() % max_size);
+	let mut rand_vec = random_vector(max_size);
 	rand_vec.sort();
 	let mut position_iterator = rand_vec.iter();
 	let mut final_string = String::new();

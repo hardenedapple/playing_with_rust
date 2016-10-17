@@ -1,7 +1,8 @@
 use std::cmp::Ordering;
 use std::collections::{HashSet, HashMap, VecDeque};
-use std::hash::{Hash,Hasher};
-use test_utils::{random_vector,rand};
+use std::hash::{Hash, Hasher};
+use test_utils::{random_vector, seeded_rng};
+use test_utils::rand::Rng;
 use super::*;
 
 
@@ -89,7 +90,8 @@ fn basic_tests() {
 macro_rules! create_graph {
     ( $nodes:ident, $edges:ident ) => {
         // Max of 100 elements in order to avoid taking too long.
-        let $nodes = (0..(rand::random::<u32>() % 100)).map(
+        let mut rng = seeded_rng();
+        let $nodes = (0..(rng.gen::<u32>() % 100)).map(
             |x| create_node(x)).collect::<Vec<_>>();
 
         let mut edge_weights = random_vector(10 * $nodes.len());
@@ -152,8 +154,8 @@ macro_rules! create_graph {
         let mut $edges = Vec::<Edge>::new();
         for weight in edge_weights.into_iter() {
             $edges.push(Edge {
-                point_a: &$nodes[rand::random::<usize>() % $nodes.len()],
-                point_b: &$nodes[rand::random::<usize>() % $nodes.len()],
+                point_a: &$nodes[rng.gen::<usize>() % $nodes.len()],
+                point_b: &$nodes[rng.gen::<usize>() % $nodes.len()],
                 weight: weight
             })
         }

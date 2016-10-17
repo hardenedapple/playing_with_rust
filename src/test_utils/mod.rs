@@ -13,6 +13,21 @@ use self::rand::Rng;
 
 pub const MAX_PERMUTATION_SIZE: usize = 10;
 
+pub fn seeded_rng() -> rand::StdRng {
+    /*
+     * Running random tests has the benefit that you're more likely to get test cases you haven't
+     * thought of, but the downside of reproducability.
+     * In order to aid in reproduction I like to randomly generate a seed, and print it out so that
+     * if something goes wrong I can manually use that seed when debugging it.
+     * Usually in C I pass this seed in as a command line argument, but I don't know how to do that
+     * through Cargo, so I make sure all seeds come from this function so that I am able to
+     * hard-code the seed in here if required.
+     */
+    let seed = rand::random::<[usize; 4]>();
+    println!("seed: {:?}", seed);
+    rand::SeedableRng::from_seed(&seed as &[usize])
+}
+
 /*
  * TODO (maybe)
  * If I make the distribution less random and more weighted to the edges, this may catch more
@@ -27,9 +42,9 @@ pub fn random_vector<T: rand::Rand>(max_length: usize)
             return Vec::new();
         }
 
-        let length: usize = rand::random::<usize>() % (max_length + 1);
+        let mut rng = seeded_rng();
+        let length: usize = rng.gen::<usize>() % (max_length + 1);
         let mut retval: Vec<T> = Vec::with_capacity(length);
-        let mut rng = rand::thread_rng();
         for _ in 0..length {
             retval.push(rng.gen());
         }

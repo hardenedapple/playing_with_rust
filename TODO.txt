@@ -1,8 +1,16 @@
-Find out how to initialise the random number generator with a known value.
-    This would mean I can print out the seed for my RNG, and if a test fails I
-    can reproduce it (text printed to stdout is ignored when running tests
-    unless the test fails).
-    Places where I need to do this
+Make convenience functions for seeded_rng()
+    In the rand:: crate there is the convenience function rand::random() that
+    just gives you a single random number without having to generate a Rng
+    structure.
+    I wonder if it would be nice to create an analagous function in
+    test_utils:: that creates a single random value from a seeded Rng
+    structure.
+    
+    This would make some code look better with the downside that messegase may
+    be printed out more than once.
+    
+    If there is some way to not print out messages more than once (maybe with
+    std::sync::Once) then this could be pretty useful).
 
 Options for making graphs in Rust:
     Some writing on the subject

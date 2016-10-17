@@ -1,5 +1,6 @@
 use knapsack_problem::*;
-use test_utils::{VectorPermutations,random_vector,MAX_PERMUTATION_SIZE,rand};
+use test_utils::{VectorPermutations,random_vector,MAX_PERMUTATION_SIZE,seeded_rng};
+use test_utils::rand::{Rng, Rand};
 const MAX_VECTOR_SIZE: usize = 30;
 
 fn alternate_same_set<T: PartialEq + Ord>(left: &mut Vec<T>, right: &mut Vec<T>) -> bool {
@@ -13,8 +14,8 @@ fn alternate_same_set<T: PartialEq + Ord>(left: &mut Vec<T>, right: &mut Vec<T>)
  *  This is so that with 30 elements in a knapsack, it should be impossible for the value or
  *  weight to overflow a 32 bit unsigned integer (unless I'm missing something.
  */
-impl rand::Rand for Item {
-    fn rand<R: rand::Rng>(rng: &mut R) -> Item {
+impl Rand for Item {
+    fn rand<R: Rng>(rng: &mut R) -> Item {
         let tuple: (u16, u16) = rng.gen();
         Item { item_weight: tuple.0 as u32, item_value: tuple.1 as u32 }
     }
@@ -69,9 +70,9 @@ fn ignores_valueless() {
 
 #[test]
 fn same_result_each_time() {
-    let rand_vec = random_vector(rand::random::<usize>() %
-                                           MAX_VECTOR_SIZE);
-    let random_capacity = rand::random::<u32>();
+    let mut rng = seeded_rng();
+    let rand_vec = random_vector(rng.gen::<usize>() % MAX_VECTOR_SIZE);
+    let random_capacity = rng.gen::<u32>();
 
     let original_answer = best_knapsack(KnapsackProblem {
         kp_capacity: random_capacity,
@@ -101,7 +102,8 @@ fn order_insensitive() {
     let item_options: Vec<Item> = random_vector(MAX_PERMUTATION_SIZE - 1);
     println!("Original vector: {:?}", item_options);
     let mut permutations = VectorPermutations::from_vec(item_options);
-    let knapsack_capacity = rand::random();
+    let mut rng = seeded_rng();
+    let knapsack_capacity = rng.gen();
     let first_solution: KnapsackSolution;
     if let Some(initial_permutation) = permutations.permute() {
         first_solution = best_knapsack(KnapsackProblem {
@@ -124,7 +126,8 @@ fn order_insensitive() {
 fn set_comparison() {
     let mut left: Vec<u32> = random_vector(MAX_VECTOR_SIZE);
     let mut right: Vec<u32>;
-    if rand::random::<bool>() {
+    let mut rng = seeded_rng();
+    if rng.gen::<bool>() {
         right = left.clone();
     } else {
         right = random_vector(MAX_VECTOR_SIZE);
