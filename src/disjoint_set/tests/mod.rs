@@ -380,12 +380,13 @@ fn multi_thread() {
         (0..100).map(|x| create_node(x)).collect::<Vec<_>>());
 
     let mut rng = seeded_rng();
+    let mut children = Vec::new();
 
     for _ in 1..(rng.gen::<usize>() % rc_nodes.len()) {
         let tx = tx.clone();
         let rc_nodes = rc_nodes.clone();
         let newseed = rng.gen::<[usize; 4]>();
-        thread::spawn(
+        children.push(thread::spawn(
             move | |
             {
                 let mut rng: rand::StdRng = rand::SeedableRng::from_seed(&newseed as &[usize]);
@@ -400,13 +401,26 @@ fn multi_thread() {
                     Ok(_) => {},
                     Err(_) => panic!("Send failed!!"),
                 }
-            });
+            }));
     }
+
     /* Make sure the transmit end is closed in our thread so the channel is closed once the above
      * threads exit. This means the iterator over the receiving end eventually returns None. */
     drop(tx);
+
+    /* Get the results of each thread -- check that each thread finished successfully */
+    for (thread_number, child_thread) in children.into_iter().enumerate() {
+        match child_thread.join() {
+            Ok(_) => {},
+            Err(error) => {
+                println!("Thread number {} failed", thread_number);
+                panic!(error);
+            }
+        }
+    }
+
     /* Wait until the other threads have all finished. Otherwise a union() operation could be run
-     * in between our two find() operations, and we would have a failure. */
+     * in between our two find() operations, and we would have a false failure. */
     let element_pairs: Vec<(Element, Element)> = rx.iter().collect();
     for (start, end) in element_pairs {
         /* NOTE Here we're using the DisjointSet implementation of the Element structure. */
