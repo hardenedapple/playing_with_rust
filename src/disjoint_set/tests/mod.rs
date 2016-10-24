@@ -369,6 +369,13 @@ fn can_implement_kruskals() {
  *      My macro of create_graph!() is awkward here because it shares references to nodes in the
  *      Edges, and this means I can't move the nodes into the Arc<> structures.
  *      I'll have a further look in the future.
+ *
+ * TODO
+ *      At the moment this function exposes a bug, but not deterministically.
+ *      Because the problem is with a race condition, I can't make this function *always* show the
+ *      bug.
+ *      Instead I run the test in the loop below until it fails.
+ *      $ while cargo test -- --test multi_thread; do continue; done
  */
 #[test]
 fn multi_thread() {
