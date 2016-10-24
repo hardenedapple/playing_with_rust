@@ -121,6 +121,16 @@ pub trait DisjointSet {
      *
      *  Similarly, if another thread joins our greater_root onto a different Element before we
      *  increment its rank, we have undone that threads work joining the Elements.
+     *
+     *  If this were a different language, I could write another function find_locked() that
+     *  returns from its recursion still holding the write lock on the root node.
+     *  I could then change the pointers around under these locks in union(), then release them
+     *  once done.
+     *  I'm having a lot of trouble doing this in Rust. 
+     *  I want to have the RwLockWriteGuard<ElementParent> of the root around while I'm jiggling
+     *  pointers and values.
+     *  Because the RwLock::write() method takes a &self, I hence need to keep the root structure
+     *  around too.
      */
     fn union(&self, other: &Self) -> UnionResult {
         let (my_root, their_root) = (self.find(), other.find());
