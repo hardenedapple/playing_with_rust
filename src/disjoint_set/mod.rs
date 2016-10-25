@@ -151,7 +151,6 @@ macro_rules! find_locked {
  *      contention if locks are being dropped & obtained all over the place).
  */
     ($init_node:expr, $inner_parent:ident, $inner_guard:ident) => {
-
         /* NOTE -- remember drop() order at end of fn here */
         let $inner_parent; // Lifetime of innermost parent must exceed lifetime of guard
         let $inner_guard; // Want RwLockWriteGuard to last until end of block (the whole point)
@@ -199,13 +198,80 @@ macro_rules! find_locked {
             for mut guard in guard_vector.into_iter().rev() {
                 *guard = ElementParent::UpElement($inner_parent.clone());
             }
+        }
 
-            /* Shouldn't be needed, but nice little check */
-            for parent in parent_vector.into_iter() {
-                match parent.try_write() {
-                    Ok(_) => {},
-                    Err(_) => panic!("Outer values are locked"),
+        /* Shouldn't be needed, but nice little check */
+        match $inner_parent.try_write() {
+            Ok(_) => panic!("Inner value is not locked!"),
+            Err(_) => {},
+        };
+    };
+
+    ($init_node:expr, $inner_parent:ident, $inner_guard:ident, $prev_inner_ptr:expr) => {
+        /* NOTE -- remember drop() order at end of fn here */
+        let $inner_parent; // Lifetime of innermost parent must exceed lifetime of guard
+        let $inner_guard; // Want RwLockWriteGuard to last until end of block (the whole point)
+        {
+            let mut parent_vector = vec![$init_node.clone()];
+            let next_parent_ptr = $init_node.deref() as *const RwLock<ElementParent>
+                as *mut RwLock<ElementParent>;
+            unsafe {
+                if (&mut *next_parent_ptr).get_mut().unwrap() as *mut ElementParent
+                    == $prev_inner_ptr {
+                        return UnionResult::NoChange;
+                    }
+            }
+
+            let mut guard_vector = vec![$init_node.write().unwrap()];
+            loop {
+                if let ElementParent::UpElement(ref next_parent) = *last_ele_unbound!(guard_vector) {
+                    // TODO
+                    //      If guard_vector.push() reallocates, and hence the reference to next_parent is
+                    //      no longer valid, does that mean the lock I have obtained here is also no longer
+                    //      valid?
+                    //      Can test for reallocation by using with_capacity(), capacity(), and
+                    //      shrink_to_fit(), but what can I look for to tell whether the guard has been
+                    //      invalidated.
+                    //
+                    //      Justification/Reasoning/This code is just a play around anyway:
+                    //          The Arc<> data type that I'm storing conceptually owns the RwLock<> data
+                    //          type, but the actual data isn't there.
+                    //          When the vector reallocates, it will move the Arc<> structure, but have no
+                    //          affect on the RwLock<> structure that is stored elsewhere.
+                    //          The RwLockWriteGuard<> is not invalidated as it has no requirement on where
+                    //          the Arc<> data structures are.
+                    //
+                    //          I think it unlikely that the Arc<> types will reach into whatever they own
+                    //          in order to invalidate them.
+
+                    parent_vector.push(next_parent.clone());
+                    // Use temporary variable just to make 100% certain of the order between next_parent
+                    // being dereferenced and guard_vector being modified.
+
+                    /* If the current thread already has the write lock on this parent, then we
+                     * can't get it again. Test this by looking if the ElementParent under this
+                     * RwLock is the same as the other ElementParent we have (only ever use this
+                     * macro in union()) */
+                    let next_parent_ptr = next_parent.deref() as *const RwLock<ElementParent>
+                        as *mut RwLock<ElementParent>;
+                    unsafe {
+                        if (&mut *next_parent_ptr).get_mut().unwrap() as *mut ElementParent
+                            == $prev_inner_ptr {
+                            return UnionResult::NoChange;
+                        }
+                    }
+
+                    let temp_guard = next_parent.write().unwrap();
+                    guard_vector.push(temp_guard);
+                } else {
+                    $inner_parent = parent_vector.pop().unwrap();
+                    $inner_guard = guard_vector.pop().unwrap();
+                    break;
                 }
+            }
+
+            for mut guard in guard_vector.into_iter().rev() {
+                *guard = ElementParent::UpElement($inner_parent.clone());
             }
         }
 
@@ -252,7 +318,8 @@ pub trait DisjointSet {
         let my_init = self.get_node();
         let their_init = other.get_node();
         find_locked!(my_init, my_root, my_guard);
-        find_locked!(their_init, their_root, their_guard);
+        find_locked!(their_init, their_root, their_guard,
+                     my_guard.deref() as *const ElementParent as *mut ElementParent);
         // This can't be the case at the moment because the second find_locked!() would have
         // panic'd -- in the future I'll make something so that that macro instead tells this block
         // that something has happened.
@@ -289,8 +356,6 @@ fn attempt_find_locked(init_node: Element) -> bool {
     };
     retval
 }
-
-
 
 #[test]
 fn three_deep_find_locked() {
