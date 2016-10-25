@@ -29,7 +29,7 @@
  * pointers to see how that works out.
  */
 
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, RwLock, RwLockWriteGuard};
 use std::ops::Deref;
 use std::hash::{Hash,Hasher};
 
@@ -159,6 +159,104 @@ pub trait DisjointSet {
     }
 }
 
+/*
+ * Requirements:
+ *      The RwLock of each level must be held with a write() over all inner levels.
+ *          -> The lifetime of the parent of each level must span all inner levels.
+ *      The RwLock of the innermost level must be held throughout.
+ *          -> The lifetime of the parent of the innermost level must contain all levels
+ *      
+ *      In order to modify the ElementParent on our way back up the "stack", we need a writer lock
+ *      on the data.
+ *      In order to follow our way down the "stack", we need either a reader or writer lock on the
+ *      data.
+ *      These can't happen at the same time.
+ *      This means we either need to
+ */
+
+#[cfg(test)]
+fn attempt_find_locked(init_node: Element) -> bool {
+    macro_rules! last_ele_unbound {
+        ($vector:expr) => {
+                unsafe { &*($vector.last().unwrap().deref() as *const ElementParent) }
+        } 
+    }
+
+    /* NOTE -- remember drop() order at end of fn here */
+    let parent3; // Lifetime of innermost parent must exceed lifetime of lock guard
+    let ranker3; // Want RwLockWriteGuard to last until end of function (the whole aim)
+    let mut parent_vector = vec![init_node.clone()];
+    // Have to borrow parent_vector here?
+    let mut ranker_vector = vec![init_node.write().unwrap()];
+    if let ElementParent::UpElement(ref parent2_ref) = *last_ele_unbound!(ranker_vector) {
+        parent_vector.push(parent2_ref.clone());
+        ranker_vector.push(parent2_ref.write().unwrap());
+        if let ElementParent::UpElement(ref parent3_ref) = *last_ele_unbound!(ranker_vector) {
+            parent3 = parent3_ref.clone();
+            parent_vector.push(parent3.clone());
+            ranker3 = parent3.write().unwrap();
+            if let ElementParent::Rank(val) = *ranker3 {
+                assert_eq!(val, 2);
+            } else {
+                panic!("Third layer depth failed");
+            }
+        } else {
+            panic!("Second layer depth failed");
+        }
+        *ranker_vector.pop().unwrap() = ElementParent::UpElement(parent_vector.pop().unwrap().clone());
+    } else {
+        panic!("First layer depth failed");
+    }
+    *ranker_vector.pop().unwrap() = ElementParent::UpElement(parent_vector.pop().unwrap().clone());
+    true
+}
+
+// #[cfg(test)]
+// fn attempt_find_locked(init_node: Element) -> bool {
+//     /* NOTE -- remember drop() order at end of fn here */
+//     let parent3;
+//     let ranker3;
+//     let parent1 = init_node.clone();
+//     let mut parent_vector = vec![parent1.clone()];
+//     let mut ranker_vector = vec![parent1.write().unwrap()];
+//     if let ElementParent::UpElement(ref parent2_ref) = **ranker_vector.last().unwrap() {
+//         let parent2 = parent2_ref.clone();
+//         parent_vector.push(parent2.clone());
+//         ranker_vector.push(parent2.write().unwrap());
+//         if let ElementParent::UpElement(ref parent3_ref) = **ranker_vector.last().unwrap() {
+//             parent3 = parent3_ref.clone();
+//             parent_vector.push(parent3.clone());
+//             ranker3 = parent3.write().unwrap();
+//             if let ElementParent::Rank(val) = *ranker3 {
+//                 assert_eq!(val, 2);
+//             } else {
+//                 panic!("Third layer depth failed");
+//             }
+//         } else {
+//             panic!("Second layer depth failed");
+//         }
+//         *ranker_vector.pop().unwrap() = ElementParent::UpElement(parent_vector.pop().unwrap().clone());
+//     } else {
+//         panic!("First layer depth failed");
+//     }
+//     *ranker_vector.pop().unwrap() = ElementParent::UpElement(parent_vector.pop().unwrap().clone());
+//     true
+// }
+
+
+
+#[test]
+fn three_deep_find_locked() {
+    let elements = (0..3).map(Element::new).collect::<Vec<_>>();
+    let element0 = elements[0].clone();
+    let element1 = elements[1].clone();
+    let element2 = elements[2].clone();
+    *element0.write().unwrap() = ElementParent::UpElement(element1.clone());
+    *element1.write().unwrap() = ElementParent::UpElement(element2.clone());
+
+    assert!(attempt_find_locked(elements[0].clone()));
+    assert_eq!(elements.len(), 3);
+}
 
 #[cfg(test)]
 mod tests;
