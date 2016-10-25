@@ -98,8 +98,6 @@ pub trait DisjointSet {
         if my_root == their_root {
             UnionResult::NoChange
         } else {
-            // TODO
-            //   Make this neat, currently it's very ugly.
             let my_rank = match *my_root.borrow() {
                 ElementParent::Rank(x) => x,
                 _ => unreachable!(),

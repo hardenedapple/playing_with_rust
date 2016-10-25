@@ -203,8 +203,6 @@ fn state_is_reset() {
 	assert_eq!(initial_state, vector_permutations);
 
 	loop {
-		// TODO -- extra block to satisfy the borrow checker
-		//			any way to neaten this?
 		{
 			let initial = vector_permutations.permute();
 			let alternate = initial_state.permute();

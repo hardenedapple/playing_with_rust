@@ -7,7 +7,8 @@
 	to represent them.
 */
 use super::*;
-use test_utils::random_vector;
+use test_utils::{random_vector, seeded_rng};
+use test_utils::rand::Rng;
 
 
 #[test]
@@ -79,23 +80,38 @@ fn known_edge_cases() {
 	all_versions_agree(" a o e u i ' q j k x , . - p y b m w v z d h t n s f g c r l ");
 }
 
+fn random_space_positions(max_size: usize, max_position: usize) -> Vec<usize> {
+    // No point having many numbers greater than the length of the string.
+    // Some numbers greater than that length means we can have spaces on the end.
+    let mut rand_vec = random_vector(max_size).iter().map(
+        |x| x % max_position).collect::<Vec<usize>>();
+	rand_vec.sort();
+    rand_vec.dedup();
+
+    // force ~ 50% chance of double spaces (except when rand_vec == 0)
+    let mut rng = seeded_rng();
+    if rng.gen::<bool>() && rand_vec.len() > 0 {
+        let num_duplicates = rng.gen::<usize>() % rand_vec.len();
+        for _ in 0..num_duplicates {
+            let dup_position = rng.gen::<usize>() % rand_vec.len();
+            let dup_val = rand_vec[dup_position];
+            rand_vec.insert(dup_position, dup_val);
+        }
+    }
+
+    rand_vec
+}
+
 fn create_random_sentance(max_size: usize)
 	 -> String {
-	/*
-		TODO
-			Look for neater implementation -- Currently seems a little obtuse.
-			Maybe use an alternate method to split my characters into words.
-	*/
 	let mut initial_sentance = String::from(
 										"abcdefghijklmnopqrstuvwxyz\
 										0123456789\
 										ABCDEFGHIJKLMNOPQRSTUVWXYZ");
-	let mut rand_vec = random_vector(max_size);
-	rand_vec.sort();
-	let mut position_iterator = rand_vec.iter();
+
 	let mut final_string = String::new();
 	let mut current_position: usize = 0;
-	while let Some(&next_space) = position_iterator.next() {
+    for next_space in random_space_positions(max_size, initial_sentance.len() + 2) {
 		for _ in current_position..next_space {
 			if let Some(next_char) = initial_sentance.pop() {
 				final_string.push(next_char);
@@ -116,10 +132,6 @@ fn create_random_sentance(max_size: usize)
 
 #[test]
 fn all_agree_random() {
-	/*
-		TODO
-			Maybe not limit the number of spaces -- maybe both with and without limit.
-	*/
 	for _ in 0..1000 {
 		let next_sentance = create_random_sentance(20);
 		all_versions_agree(&next_sentance);

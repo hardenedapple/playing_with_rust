@@ -116,17 +116,16 @@ impl Eq for KnapsackSolution {}
 /// ```
 pub fn best_knapsack(mut problem: KnapsackProblem)
     -> KnapsackSolution {
-
-    if problem.kp_options.len() == 0 {
-        return KnapsackSolution {
+    let test_item    = match problem.kp_options.pop() {
+        Some(x) => x,
+        None => return KnapsackSolution {
             ks_weight   : 0,
             ks_value    : 0,
             ks_capacity : problem.kp_capacity,
             ks_items    : problem.kp_options
-        };
-    }
+        }
+    };
 
-    let test_item    = problem.kp_options.pop().unwrap();
     let other_items  = problem.kp_options.clone();
     let cur_capacity = problem.kp_capacity;
 

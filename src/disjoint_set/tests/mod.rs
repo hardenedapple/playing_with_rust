@@ -228,11 +228,13 @@ macro_rules! add_to_adjacency {
     ($edge:expr, $partial_mst:expr) => {
         for (node, othernode) in vec![($edge.point_a, $edge.point_b),
                                       ($edge.point_b, $edge.point_a)].into_iter() {
-            // TODO -- is there some pretty way of checking this?
-            //    if let takes the mutable reference for the entire if
-            //    expression (including the else branch) which means I can't
-            //    borrow partial_mst mutably in the else branch when I want to
-            //    insert a new adjacency list.
+            /*
+             * NOTE -- Don't think there's a pretty way to do this.
+             *    if let takes the mutable reference for the entire if
+             *    expression (including the else branch) which means I can't
+             *    borrow partial_mst mutably in the else branch when I want to
+             *    insert a new adjacency list.
+             */
             let mut flag = false;
             if let Some(mut set) = $partial_mst.get_mut(node) {
                 set.insert(othernode);
