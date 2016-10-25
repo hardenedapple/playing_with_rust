@@ -176,72 +176,103 @@ pub trait DisjointSet {
 
 #[cfg(test)]
 fn attempt_find_locked(init_node: Element) -> bool {
+    /*
+     * NOTE
+     *      Need this so that we can view the next "step" we follow without immutably borrowing the
+     *      vector for the lifetime of the value we read.
+     *      I need the "lifetime" of next_parent to be as long as the lifetime of guard_vector so
+     *      that I can store a reference to it in that vector.
+     *      As far as Rust knows, I could dereference the next_parent value after guard_vector has
+     *      reallocated, and be dereferencing freed memory.
+     *      I don't believe this is the case because of how I access things (though I'm not 100%
+     *      sure moving an Arc<> type doesn't affect the RwLockWriteGuard<> taken from the RwLock<>
+     *      inside that Arc<>
+     */
     macro_rules! last_ele_unbound {
         ($vector:expr) => {
                 unsafe { &*($vector.last().unwrap().deref() as *const ElementParent) }
         } 
     }
 
-    /* NOTE -- remember drop() order at end of fn here */
-    let parent3; // Lifetime of innermost parent must exceed lifetime of lock guard
-    let ranker3; // Want RwLockWriteGuard to last until end of function (the whole aim)
-    let mut parent_vector = vec![init_node.clone()];
-    // Have to borrow parent_vector here?
-    let mut ranker_vector = vec![init_node.write().unwrap()];
-    if let ElementParent::UpElement(ref parent2_ref) = *last_ele_unbound!(ranker_vector) {
-        parent_vector.push(parent2_ref.clone());
-        ranker_vector.push(parent2_ref.write().unwrap());
-        if let ElementParent::UpElement(ref parent3_ref) = *last_ele_unbound!(ranker_vector) {
-            parent3 = parent3_ref.clone();
-            parent_vector.push(parent3.clone());
-            ranker3 = parent3.write().unwrap();
-            if let ElementParent::Rank(val) = *ranker3 {
-                assert_eq!(val, 2);
-            } else {
-                panic!("Third layer depth failed");
-            }
-        } else {
-            panic!("Second layer depth failed");
-        }
-        *ranker_vector.pop().unwrap() = ElementParent::UpElement(parent_vector.pop().unwrap().clone());
-    } else {
-        panic!("First layer depth failed");
-    }
-    *ranker_vector.pop().unwrap() = ElementParent::UpElement(parent_vector.pop().unwrap().clone());
-    true
-}
+    /* TODO Do I need to keep the lock while following the chain?
+     *      There are two options -- have a small gap between dropping the lock on the "current"
+     *      and getting the lock on the "next", or not.
+     *
+     *      No gap Case 1:
+     *          Two processes, disjoint set of three Nodes   A -> B -> C
+     *          Run find on A at the same time, don't hold any lock while searching higher Nodes.
+     *          First process gets a lock on A, second process can't do anything.
+     *          First process drops lock on A, gets lock on B
+     *          Second process can get lock on A, but can't get past B.
+     *          This carries on until first process gets lock on C and attempts to get lock on B to
+     *          modify it on the way down.
+     *          At this point, the second process can't get lock on C (because the whole point is
+     *          to keep a lock on C for the return), and hence doesn't drop the lock on B.
+     *          DEADLOCK!
+     *
+     *      Gap Case 1:
+     *          Following the above until the first process attempts to lock B for the second time,
+     *          at this point it gets it because the second process has dropped lock B in
+     *          preparation for obtaining lock C.
+     *
+     *      If only get read lock on each Node when following path, then have to upgrade lock once
+     *      reach root.
+     *      This would introduce a race, and you'd have to check that nothing changed during
+     *      dropping the read lock and obtaining the lock.
+     *      Under the assumption you have two */
 
-// #[cfg(test)]
-// fn attempt_find_locked(init_node: Element) -> bool {
-//     /* NOTE -- remember drop() order at end of fn here */
-//     let parent3;
-//     let ranker3;
-//     let parent1 = init_node.clone();
-//     let mut parent_vector = vec![parent1.clone()];
-//     let mut ranker_vector = vec![parent1.write().unwrap()];
-//     if let ElementParent::UpElement(ref parent2_ref) = **ranker_vector.last().unwrap() {
-//         let parent2 = parent2_ref.clone();
-//         parent_vector.push(parent2.clone());
-//         ranker_vector.push(parent2.write().unwrap());
-//         if let ElementParent::UpElement(ref parent3_ref) = **ranker_vector.last().unwrap() {
-//             parent3 = parent3_ref.clone();
-//             parent_vector.push(parent3.clone());
-//             ranker3 = parent3.write().unwrap();
-//             if let ElementParent::Rank(val) = *ranker3 {
-//                 assert_eq!(val, 2);
-//             } else {
-//                 panic!("Third layer depth failed");
-//             }
-//         } else {
-//             panic!("Second layer depth failed");
-//         }
-//         *ranker_vector.pop().unwrap() = ElementParent::UpElement(parent_vector.pop().unwrap().clone());
-//     } else {
-//         panic!("First layer depth failed");
-//     }
-//     *ranker_vector.pop().unwrap() = ElementParent::UpElement(parent_vector.pop().unwrap().clone());
-//     true
-// }
+    /* NOTE -- remember drop() order at end of fn here */
+    let inner_parent; // Lifetime of innermost parent must exceed lifetime of guard guard
+    let inner_guard; // Want RwLockWriteGuard to last until end of function (the whole aim)
+    let mut parent_vector = vec![init_node.clone()];
+    let mut guard_vector = vec![init_node.write().unwrap()];
+    loop {
+        if let ElementParent::UpElement(ref next_parent) = *last_ele_unbound!(guard_vector) {
+            parent_vector.push(next_parent.clone());
+            // TODO
+            //      If guard_vector.push() reallocates, and hence the reference to next_parent is
+            //      no longer valid, does that mean the lock I have obtained here is also no longer
+            //      valid?
+            //      Can test for reallocation by using with_capacity(), capacity(), and
+            //      shrink_to_fit(), but what can I look for to tell whether the guard has been
+            //      invalidated.
+            //
+            //      Reasoning:
+            //          The Arc<> data type that I'm storing conceptually owns the RwLock<> data
+            //          type, but the actual data isn't there.
+            //          When the vector reallocates, it will move the Arc<> structure, but have no
+            //          affect on the RwLock<> structure that is stored elsewhere.
+            //          The RwLockWriteGuard<> is not invalidated as it has no requirement on where
+            //          the Arc<> data structures are.
+            //
+            //          I think it unlikely that the Arc<> types will reach into whatever they own
+            //          in order to invalidate them.
+
+            // Use temporary variable just to make 100% certain of the order between next_parent
+            // being dereferenced and guard_vector being modified.
+            let temp_guard = next_parent.write().unwrap();
+            guard_vector.push(temp_guard);
+        } else {
+            match *last_ele_unbound!(guard_vector) {
+                ElementParent::Rank(2) => {},
+                ElementParent::Rank(_) => { panic!("Gotten wrong inner value!!"); },
+                _ => unreachable!(),
+            }
+            inner_parent = parent_vector.pop().unwrap();
+            inner_guard = guard_vector.pop().unwrap();
+            break;
+        }
+    }
+
+    for mut guard in guard_vector.into_iter().rev() {
+        *guard = ElementParent::UpElement(inner_parent.clone());
+    }
+    let retval = match inner_parent.try_write() {
+        Ok(_) => panic!("Inner value is not locked!"),
+        Err(_) => true,
+    };
+    retval
+}
 
 
 
