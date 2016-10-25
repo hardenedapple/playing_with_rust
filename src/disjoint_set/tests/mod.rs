@@ -92,7 +92,7 @@ macro_rules! create_graph {
         // Max of 100 elements in order to avoid taking too long.
         let mut rng = seeded_rng();
         let $nodes = (0..(rng.gen::<u32>() % 100)).map(
-            |x| create_node(x)).collect::<Vec<_>>();
+            create_node).collect::<Vec<_>>();
 
         let mut edge_weights = random_vector(10 * $nodes.len());
         edge_weights.sort();
