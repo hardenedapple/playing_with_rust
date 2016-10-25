@@ -120,6 +120,24 @@ macro_rules! last_ele_unbound {
     } 
 }
 
+/*
+ * NOTE XXX:
+ *  Imagine two threads, and the structure below
+ *      A -> B -> C -> D 
+ *      E -> F -> C
+ *      G -> F
+ *  Thread one is running the union() code, it goes all the way up to D and keeps the writer lock
+ *  on A, B, C, and D.
+ *  Meanwhile, thread two has obtained the writer lock for E and F from calling find(E), it is
+ *  currently waiting on C.
+ *  Thread one is now following G as the 'other' for its union() call, it gets lock G and has to
+ *  wait for thread two to release F.
+ *  Thread two is waiting on thread one releasing C, while thread one is waiting on thread two
+ *  releasing F.
+ *
+ *  DEADLOCK!!
+ */
+
 macro_rules! find_locked {
 /* TODO Do I need to keep the lock while following the chain?
  *      There are two options -- have a small gap between dropping the lock on the "current"
@@ -150,12 +168,11 @@ macro_rules! find_locked {
  *      I doubt it's worth the extra effort coding (especially as there would probably be much more
  *      contention if locks are being dropped & obtained all over the place).
  */
-    ($init_node:expr, $inner_parent:ident, $inner_guard:ident) => {
+    ($init_node:expr, $parent_vector:ident, $guard_vector:ident) => {
         /* NOTE -- remember drop() order at end of fn here */
-        let $inner_parent; // Lifetime of innermost parent must exceed lifetime of guard
-        let $inner_guard; // Want RwLockWriteGuard to last until end of block (the whole point)
+        let mut $parent_vector = vec![$init_node.clone()];
+        let mut $guard_vector = Vec::new();
         {
-            let mut parent_vector = vec![$init_node.clone()];
             let mut guard_vector = vec![$init_node.write().unwrap()];
             loop {
                 if let ElementParent::UpElement(ref next_parent) = *last_ele_unbound!(guard_vector) {
@@ -178,7 +195,7 @@ macro_rules! find_locked {
                     //          I think it unlikely that the Arc<> types will reach into whatever they own
                     //          in order to invalidate them.
 
-                    parent_vector.push(next_parent.clone());
+                    $parent_vector.push(next_parent.clone());
                     // Use temporary variable just to make 100% certain of the order between next_parent
                     // being dereferenced and guard_vector being modified.
 
@@ -189,37 +206,40 @@ macro_rules! find_locked {
                     let temp_guard = next_parent.write().unwrap();
                     guard_vector.push(temp_guard);
                 } else {
-                    $inner_parent = parent_vector.pop().unwrap();
-                    $inner_guard = guard_vector.pop().unwrap();
                     break;
                 }
             }
 
-            for mut guard in guard_vector.into_iter().rev() {
-                *guard = ElementParent::UpElement($inner_parent.clone());
+            let inner_guard = guard_vector.pop().unwrap();
+            for mut guard in guard_vector.into_iter() {
+                *guard = ElementParent::UpElement($parent_vector.last().unwrap().clone());
+                $guard_vector.push(guard);
             }
+            $guard_vector.push(inner_guard);
         }
 
         /* Shouldn't be needed, but nice little check */
-        match $inner_parent.try_write() {
+        match $parent_vector.last().unwrap().try_write() {
             Ok(_) => panic!("Inner value is not locked!"),
             Err(_) => {},
         };
     };
 
-    ($init_node:expr, $inner_parent:ident, $inner_guard:ident, $prev_inner_ptr:expr) => {
+    ($init_node:expr, $inner_parent:ident, $inner_guard:ident, $prev_guards:expr) => {
         /* NOTE -- remember drop() order at end of fn here */
         let $inner_parent; // Lifetime of innermost parent must exceed lifetime of guard
         let $inner_guard; // Want RwLockWriteGuard to last until end of block (the whole point)
+        let prev_guards = $prev_guards.iter().map(|x| x.deref() as *const ElementParent
+                                           as *mut ElementParent).collect::<Vec<_>>();
         {
             let mut parent_vector = vec![$init_node.clone()];
             let next_parent_ptr = $init_node.deref() as *const RwLock<ElementParent>
                 as *mut RwLock<ElementParent>;
             unsafe {
-                if (&mut *next_parent_ptr).get_mut().unwrap() as *mut ElementParent
-                    == $prev_inner_ptr {
+                let search_val = (&mut *next_parent_ptr).get_mut().unwrap() as *mut ElementParent;
+                if prev_guards.contains(&search_val) {
                         return UnionResult::NoChange;
-                    }
+                }
             }
 
             let mut guard_vector = vec![$init_node.write().unwrap()];
@@ -255,8 +275,8 @@ macro_rules! find_locked {
                     let next_parent_ptr = next_parent.deref() as *const RwLock<ElementParent>
                         as *mut RwLock<ElementParent>;
                     unsafe {
-                        if (&mut *next_parent_ptr).get_mut().unwrap() as *mut ElementParent
-                            == $prev_inner_ptr {
+                        let search_val = (&mut *next_parent_ptr).get_mut().unwrap() as *mut ElementParent;
+                        if prev_guards.contains(&search_val) {
                             return UnionResult::NoChange;
                         }
                     }
@@ -317,16 +337,16 @@ pub trait DisjointSet {
     fn union(&self, other: &Self) -> UnionResult {
         let my_init = self.get_node();
         let their_init = other.get_node();
-        find_locked!(my_init, my_root, my_guard);
-        find_locked!(their_init, their_root, their_guard,
-                     my_guard.deref() as *const ElementParent as *mut ElementParent);
+        find_locked!(my_init, my_roots, my_guards);
+        find_locked!(their_init, their_root, their_guard, &my_guards);
+        let my_root = my_roots.pop().unwrap();
+        let my_guard = my_guards.pop().unwrap();
         // This can't be the case at the moment because the second find_locked!() would have
         // panic'd -- in the future I'll make something so that that macro instead tells this block
         // that something has happened.
         assert!(my_guard.deref() as *const ElementParent !=
                 their_guard.deref() as *const ElementParent);
 
-        // TODO Make this neat, currently it's very ugly.
         let my_rank = match *my_guard {
             ElementParent::Rank(x) => x,
             _ => unreachable!(),
@@ -345,29 +365,6 @@ pub trait DisjointSet {
         *greater_guard = ElementParent::Rank(greater_rank + 1);
         UnionResult::Updated
     }
-}
-
-#[cfg(test)]
-fn attempt_find_locked(init_node: Element) -> bool {
-    find_locked!(init_node, inner_parent, inner_guard);
-    let retval = match inner_parent.try_write() {
-        Ok(_) => panic!("Inner value is not locked!"),
-        Err(_) => true,
-    };
-    retval
-}
-
-#[test]
-fn three_deep_find_locked() {
-    let elements = (0..3).map(Element::new).collect::<Vec<_>>();
-    let element0 = elements[0].clone();
-    let element1 = elements[1].clone();
-    let element2 = elements[2].clone();
-    *element0.write().unwrap() = ElementParent::UpElement(element1.clone());
-    *element1.write().unwrap() = ElementParent::UpElement(element2.clone());
-
-    assert!(attempt_find_locked(elements[0].clone()));
-    assert_eq!(elements.len(), 3);
 }
 
 #[cfg(test)]
