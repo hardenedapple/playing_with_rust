@@ -160,4 +160,3 @@ fn set_check_permutation_independent() {
         assert_eq!(vector_same_set_test(new_permutation, &test_vector), is_same_set);
     }
 }
-

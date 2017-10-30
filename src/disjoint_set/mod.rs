@@ -43,7 +43,7 @@ pub enum UnionResult {
 pub struct Element(Rc<RefCell<ElementParent>>);
 
 impl Element {
-    fn new(start_rank: i32) -> Element {
+    pub fn new(start_rank: i32) -> Element {
         Element(Rc::new(RefCell::new(ElementParent::Rank(start_rank))))
     }
 }

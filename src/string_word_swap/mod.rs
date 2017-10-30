@@ -108,7 +108,7 @@ pub fn inplace_string_swap(sentance: &mut [u8]) {
 	macro_rules! reverse_right_word {
 		() => {
 				{
-					let mut substring = &mut sentance[(right_index + 1)..prev_right_index];
+					let substring = &mut sentance[(right_index + 1)..prev_right_index];
 					substring.reverse();
 					prev_right_index = right_index;
 			};
@@ -118,7 +118,7 @@ pub fn inplace_string_swap(sentance: &mut [u8]) {
 	macro_rules! reverse_left_word {
 		() => {
 				{
-					let mut substring = &mut sentance[prev_left_index..left_index];
+					let substring = &mut sentance[prev_left_index..left_index];
 					substring.reverse();
 					prev_left_index = left_index + 1;
 			};
@@ -148,7 +148,7 @@ pub fn inplace_string_swap(sentance: &mut [u8]) {
 	if sentance[right_index] == ASCII_SPACE { reverse_right_word!(); }
 
 	if prev_left_index < prev_right_index {
-		let mut substring = &mut sentance[prev_left_index..prev_right_index];
+		let substring = &mut sentance[prev_left_index..prev_right_index];
 		substring.reverse();
 	}
 }

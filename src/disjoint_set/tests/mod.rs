@@ -236,7 +236,7 @@ macro_rules! add_to_adjacency {
              *    insert a new adjacency list.
              */
             let mut flag = false;
-            if let Some(mut set) = $partial_mst.get_mut(node) {
+            if let Some(set) = $partial_mst.get_mut(node) {
                 set.insert(othernode);
                 flag = true;
             }
