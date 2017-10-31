@@ -76,11 +76,11 @@ impl<'a, K, V> Iterator for OrderedValues<'a, K, V>
 //  Safe implementation of an Ordered Set.
 // --------------------------------------------------------------------------------
 
-pub struct OrderedDict {
+pub struct OrderedDict<K, V> {
     // map of keys to values
-    underlying: HashMap<Rc<String>, usize>,
+    underlying: HashMap<Rc<K>, V>,
     // map of keys to positions in the vector
-    map: HashMap<Rc<String>, usize>,
+    map: HashMap<Rc<K>, usize>,
     // TODO Implement my own doubly linked list.
     // That way I can rely on the implementation, and store Shared<T> pointers in the rest of the
     // OrderedDict structure.
@@ -97,18 +97,19 @@ pub struct OrderedDict {
     // I can't use the provided LinkedList structure as the structure of the nodes is an
     // implementation detail, and there's no supported way to say "remove the element I have a
     // reference to".
-    order: Vec<Rc<String>>,
+    order: Vec<Rc<K>>,
 }
 
-impl OrderedDict {
-    pub fn new() -> OrderedDict {
+impl<K, V> OrderedDict<K, V> 
+where K: std::cmp::Eq + std::hash::Hash {
+    pub fn new() -> OrderedDict<K, V> {
         OrderedDict {
             underlying: HashMap::new(),
             map: HashMap::new(),
             order: Vec::new(),
         }
     }
-    pub fn insert(&mut self, k: String, v: usize) -> Option<usize> {
+    pub fn insert(&mut self, k: K, v: V) -> Option<V> {
         let refcell = Rc::new(k);
         match self.underlying.insert(refcell.clone(), v) {
             Some(v) => Some(v),
@@ -119,8 +120,8 @@ impl OrderedDict {
             }
         }
     }
-    pub fn get(&self, k: &String) -> Option<&usize> { self.underlying.get(k) }
-    pub fn iter(&self) -> OrderedIter<String, usize> {
+    pub fn get(&self, k: &K) -> Option<&V> { self.underlying.get(k) }
+    pub fn iter(&self) -> OrderedIter<K, V> {
         OrderedIter {
             order_iter: self.order.iter(),
             underlying_hash: &self.underlying
@@ -128,17 +129,17 @@ impl OrderedDict {
     }
     // TODO This will change when I've implemented a LinkedList that I can rely on the internal
     // structure of.
-    pub fn remove(&mut self, k: &String) -> Option<usize> {
+    pub fn remove(&mut self, k: &K) -> Option<V> {
         self.map.remove(k)
             .map(|v| Some(self.order.remove(v)));
         self.underlying.remove(k)
     }
-    pub fn keys(&self) -> OrderedKeys<String, usize> {
+    pub fn keys(&self) -> OrderedKeys<K, V> {
         OrderedKeys {
             underlying: self.iter()
         }
     }
-    pub fn values(&self) -> OrderedValues<String, usize> {
+    pub fn values(&self) -> OrderedValues<K, V> {
         OrderedValues { underlying: self.iter() }
     }
     // fn iter_mut(&mut self)
@@ -158,7 +159,7 @@ impl OrderedDict {
 mod tests {
     use super::*;
 
-    fn do_check(set: &OrderedDict, key: String, index: usize, v: usize) {
+    fn do_check(set: &OrderedDict<String, usize>, key: String, index: usize, v: usize) {
         // Check fetching directly ...
         if let Some(value) = set.get(&key) {
             println!("{} should equal {}", value, v);
