@@ -2,18 +2,31 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std;
 
-pub struct OrderedIter<'a> {
-    inner: std::slice::Iter<'a, Rc<String>>,
+// TODO
+//  Things I don't really like:
+//      I have to specify that K is Eq and Hash, despite the fact that having it in a HashMap<>
+//      implies this already.
+pub struct OrderedIter<'a, K: 'a, V: 'a> 
+    where K: std::cmp::Eq + std::hash::Hash {
+    order_iter: std::slice::Iter<'a, Rc<K>>,
+    underlying_hash: &'a HashMap<Rc<K>, V>,
 }
 
-// TODO Once all relevant methods have been implemented, change this to
-// `impl Iterator for OrderedIter`
-impl<'a> Iterator for OrderedIter<'a> {
-    type Item = &'a String;
+impl<'a, K, V> Iterator for OrderedIter<'a, K, V>
+    where K: std::cmp::Eq + std::hash::Hash {
+    type Item = (&'a K, &'a V);
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next().map(std::ops::Deref::deref)
+        // TODO give a valid error message instead of just failing on `unwrap()`.
+        // Failing on `unwrap()` should never happen, all elements in the `order_iter` should be in
+        // `underlying_hash`, this is an invariant by design.
+        // If something goes wrong here we *should* panic, but at the same time we should give
+        // a nice error message to the user rather than a cryptic one that just comes from the
+        // implementation details.
+        self.order_iter.next()
+            .map(std::ops::Deref::deref)
+            .map(|k| { (k, self.underlying_hash.get(k).unwrap()) })
     }
-    fn size_hint(&self) -> (usize, Option<usize>) { self.inner.size_hint() }
+    fn size_hint(&self) -> (usize, Option<usize>) { self.order_iter.size_hint() }
 }
 
 // These are the interfaces we want to implement.
@@ -21,7 +34,7 @@ pub trait OrderedDict {
     fn new() -> Self;
     fn insert(&mut self, k: String, v: usize) -> Option<usize>;
     fn get(&self, k: &String) -> Option<&usize>;
-    fn iter(&self) -> OrderedIter;
+    fn iter(&self) -> OrderedIter<String, usize>;
     // fn keys(&self) -> OrderedKeys;
     // fn values(&self) -> OrderedValues;
     // fn remove(&mut self, k: &String) -> Option<(String, usize)>;
@@ -54,8 +67,11 @@ impl OrderedDict for DictImpl {
         self.underlying.insert(refcell.clone(), v)
     }
     fn get(&self, k: &String) -> Option<&usize> { self.underlying.get(k) }
-    fn iter(&self) -> OrderedIter {
-        OrderedIter { inner: self.order.iter() }
+    fn iter(&self) -> OrderedIter<String, usize> {
+        OrderedIter {
+            order_iter: self.order.iter(),
+            underlying_hash: &self.underlying
+        }
     }
     // fn keys(&self) -> OrderedKeys { OrderedKeys::new(self.order) }
 }
