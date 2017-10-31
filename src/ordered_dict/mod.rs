@@ -1,6 +1,12 @@
-use std::collections::HashMap;
+use std::collections::{ HashMap, LinkedList };
 use std::rc::Rc;
 use std;
+
+// Alternate thoughts
+//
+// Maybe I should use a vector for cache optimisation and to allow random access.
+// The random access isn't really that useful at the moment, and it's entirely possible that the
+// LinkedList implementation does something clever to try and optimise for caches.
 
 // TODO
 //  Things I don't really like:
@@ -8,8 +14,9 @@ use std;
 //      implies this already.
 pub struct OrderedIter<'a, K: 'a, V: 'a> 
     where K: std::cmp::Eq + std::hash::Hash {
-    order_iter: std::slice::Iter<'a, Rc<K>>,
-    underlying_hash: &'a HashMap<Rc<K>, V>,
+        // TODO Any way to make this neater?
+        order_iter: std::collections::linked_list::Iter<'a, Rc<K>>,
+        underlying_hash: &'a HashMap<Rc<K>, V>,
 }
 
 impl<'a, K, V> Iterator for OrderedIter<'a, K, V>
@@ -29,17 +36,6 @@ impl<'a, K, V> Iterator for OrderedIter<'a, K, V>
     fn size_hint(&self) -> (usize, Option<usize>) { self.order_iter.size_hint() }
 }
 
-// These are the interfaces we want to implement.
-pub trait OrderedDict {
-    fn new() -> Self;
-    fn insert(&mut self, k: String, v: usize) -> Option<usize>;
-    fn get(&self, k: &String) -> Option<&usize>;
-    fn iter(&self) -> OrderedIter<String, usize>;
-    // fn keys(&self) -> OrderedKeys;
-    // fn values(&self) -> OrderedValues;
-    // fn remove(&mut self, k: &String) -> Option<(String, usize)>;
-}
-
 // TODO
 //      Allow deletion of elements in the hash map (i.e. use LinkedList<>)
 //      Flesh out the interface by adding IntoIter implementations etc.
@@ -49,64 +45,100 @@ pub trait OrderedDict {
 //  Safe implementation of an Ordered Set.
 // --------------------------------------------------------------------------------
 
-pub struct DictImpl {
+pub struct OrderedDict {
     underlying: HashMap<Rc<String>, usize>,
-    order: Vec<Rc<String>>,
+    order: LinkedList<Rc<String>>,
 }
 
-impl OrderedDict for DictImpl {
-    fn new() -> DictImpl {
-        DictImpl {
+impl OrderedDict {
+    pub fn new() -> OrderedDict {
+        OrderedDict {
             underlying: HashMap::new(),
-            order: Vec::new()
+            order: LinkedList::new()
         }
     }
-    fn insert(&mut self, k: String, v: usize) -> Option<usize> {
+    pub fn insert(&mut self, k: String, v: usize) -> Option<usize> {
         let refcell = Rc::new(k);
-        self.order.push(refcell.clone());
-        self.underlying.insert(refcell.clone(), v)
+        match self.underlying.insert(refcell.clone(), v) {
+            Some(v) => Some(v),
+            None => {
+                self.order.push_back(refcell.clone());
+                None
+            }
+        }
     }
-    fn get(&self, k: &String) -> Option<&usize> { self.underlying.get(k) }
-    fn iter(&self) -> OrderedIter<String, usize> {
+    pub fn get(&self, k: &String) -> Option<&usize> { self.underlying.get(k) }
+    pub fn iter(&self) -> OrderedIter<String, usize> {
         OrderedIter {
             order_iter: self.order.iter(),
             underlying_hash: &self.underlying
         }
     }
+    // pub fn remove(&mut self, k: &String) -> Option<usize> {
+    //     // TODO Have to do something special here ...
+    // }
     // fn keys(&self) -> OrderedKeys { OrderedKeys::new(self.order) }
+    // fn values(&self) -> OrderedValues ..
+    // fn iter_mut(&mut self)
+    // fn keys_mut(&mut self)
+    // fn values_mut(&mut self)
+    // fn entry(&mut self, key: K)
+    // fn len(&self) -> usize
+    // fn is_empty(&self) -> bool
+    // fn drain(&mut self) -> Drain<K, V>
+    // fn clear(&mut self)
+    // fn contains_key(&self, k: &Q)
+    // get_mut
+    // retain
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn do_check(set: DictImpl, key: String, index: usize, v: usize) {
+    fn do_check(set: &OrderedDict, key: String, index: usize, v: usize) {
         // Check fetching directly ...
         if let Some(value) = set.get(&key) {
             println!("{} should equal {}", value, v);
         } else {
-            panic!("Could not retrieve value from DictImpl");
+            panic!("Could not retrieve value from OrderedDict");
         }
 
         // Check fetching in order ...
-        let original_str = &set.order[index];
-        if let Some(value) = set.underlying.get(original_str) {
-            println!("{} should equal {}", value, v);
-        } else {
-            println!("Something is going wrong!!!");
-        }
+        match set.iter()
+            .nth(index)
+            .and_then(|first_string| { set.underlying.get(first_string.0) }) {
+                Some(value) => assert_eq!(*value, v),
+                None => panic!("\"{}\"th element did not match", index)
+            }
     }
 
     #[test]
     fn create_and_check() {
-        let mut mydict = DictImpl::new();
+        let mut mydict = OrderedDict::new();
         mydict.insert(String::from("Hello world"), 10);
         mydict.insert(String::from("Test string"), 15);
         mydict.insert(String::from("Other test"), 6);
-        do_check(mydict, String::from("Hello world"), 0, 10);
+        do_check(&mydict, String::from("Hello world"), 0, 10);
+        do_check(&mydict, String::from("Other test"), 2, 6);
+        do_check(&mydict, String::from("Test string"), 1, 15);
+        do_check(&mydict, String::from("Other test"), 2, 6);
+    }
 
-        // let mut iterator = iterator;
-        // assert_eq!(iterator.next(), ...);
+    #[test]
+    #[should_panic(expected = "Could not retrieve value from OrderedDict")]
+    fn can_mark_missing() {
+        let mut mydict = OrderedDict::new();
+        mydict.insert(String::from("Other test"), 6);
+        do_check(&mydict, String::from("Other tst"), 2, 6);
+    }
+
+    #[test]
+    #[should_panic(expected = "\"2\"th element did not match")]
+    fn can_mark_false() {
+        let mut mydict = OrderedDict::new();
+        mydict.insert(String::from("Other test"), 6);
+        do_check(&mydict, String::from("Other test"), 2, 7);
     }
 }
 
