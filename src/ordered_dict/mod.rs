@@ -24,7 +24,7 @@ use std::borrow::Borrow;
 // Unless removal of entries is a common occurance it shouldn't give too much of a performance
 // impact.
 
-pub struct OrderedIter<'a, K: 'a, V: 'a> {
+pub struct Iter<'a, K: 'a, V: 'a> {
         order_iter: ::std::slice::Iter<'a, Rc<K>>,
         underlying_hash: &'a HashMap<Rc<K>, V>,
 }
@@ -33,7 +33,7 @@ pub struct OrderedIter<'a, K: 'a, V: 'a> {
 //  Things I don't really like:
 //      I have to specify that K is Eq and Hash, despite the fact that having it in a HashMap<>
 //      implies this already.
-impl<'a, K, V> Iterator for OrderedIter<'a, K, V>
+impl<'a, K, V> Iterator for Iter<'a, K, V>
     where K: ::std::cmp::Eq + ::std::hash::Hash {
     type Item = (&'a K, &'a V);
     fn next(&mut self) -> Option<Self::Item> {
@@ -52,7 +52,7 @@ impl<'a, K, V> Iterator for OrderedIter<'a, K, V>
 
 pub struct OrderedKeys<'a, K: 'a, V: 'a>
     where K: ::std::cmp::Eq + ::std::hash::Hash {
-        underlying: OrderedIter<'a, K, V>
+        underlying: Iter<'a, K, V>
     }
 
 impl<'a, K, V> Iterator for OrderedKeys<'a, K, V>
@@ -66,7 +66,7 @@ impl<'a, K, V> Iterator for OrderedKeys<'a, K, V>
 
 pub struct OrderedValues<'a, K: 'a, V: 'a>
     where K: ::std::cmp::Eq + ::std::hash::Hash {
-        underlying: OrderedIter<'a, K, V>
+        underlying: Iter<'a, K, V>
     }
 
 impl<'a, K, V> Iterator for OrderedValues<'a, K, V>
@@ -130,8 +130,8 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
         }
     }
     pub fn get(&self, k: &K) -> Option<&V> { self.underlying.get(k) }
-    pub fn iter(&self) -> OrderedIter<K, V> {
-        OrderedIter {
+    pub fn iter(&self) -> Iter<K, V> {
+        Iter {
             order_iter: self.order.iter(),
             underlying_hash: &self.underlying
         }
@@ -249,7 +249,7 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
         //        reference to any part of it.
         // 
         // As an aside ... I'm surprised that the borrow checker is smart enough to figure out that
-        // the `OrderedIter.next()` method is OK.
+        // the `Iter.next()` method is OK.
         // I guess it figures that out because it can tell that the lifetime given as the returned
         // value from the method is the same lifetime as that in the structure.
         // Given that it knows there is already an immutably borrowed reference to the same
