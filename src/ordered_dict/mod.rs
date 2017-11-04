@@ -360,8 +360,8 @@ mod tests {
             }
     }
 
-    #[test]
-    fn create_and_check() {
+    fn create_default() ->
+        (OrderedDict<String, usize>, Vec<(String, usize)>) {
         let mut mydict = OrderedDict::new();
 
         let inserted_items = vec![
@@ -373,6 +373,13 @@ mod tests {
         for item in inserted_items.iter() {
             mydict.insert(item.0.clone(), item.1);
         }
+
+        (mydict, inserted_items)
+    }
+
+    #[test]
+    fn create_and_check() {
+        let (mut mydict, inserted_items) = create_default();
 
         do_check(&mydict, String::from("Hello world"), 0, 10);
         do_check(&mydict, String::from("Other test"), 2, 6);
