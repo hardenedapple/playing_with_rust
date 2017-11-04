@@ -89,7 +89,7 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
     // map of keys to values
     underlying: HashMap<Rc<K>, V>,
     // map of keys to positions in the vector
-    map: HashMap<Rc<K>, usize>,
+    position_map: HashMap<Rc<K>, usize>,
     // TODO Implement my own doubly linked list.
     // That way I can rely on the implementation, and store Shared<T> pointers in the rest of the
     // OrderedDict structure.
@@ -114,7 +114,7 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
     pub fn new() -> OrderedDict<K, V> {
         OrderedDict {
             underlying: HashMap::new(),
-            map: HashMap::new(),
+            position_map: HashMap::new(),
             order: Vec::new(),
         }
     }
@@ -124,7 +124,7 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
             Some(v) => Some(v),
             None => {
                 self.order.push(refcell.clone());
-                self.map.insert(refcell.clone(), self.order.len() - 1);
+                self.position_map.insert(refcell.clone(), self.order.len() - 1);
                 None
             }
         }
@@ -139,7 +139,7 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
     // TODO This will change when I've implemented a LinkedList that I can rely on the internal
     // structure of.
     pub fn remove(&mut self, k: &K) -> Option<V> {
-        self.map.remove(k)
+        self.position_map.remove(k)
             .map(|v| Some(self.order.remove(v)));
         self.underlying.remove(k)
     }
@@ -171,7 +171,7 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
     // retain
     pub fn reserve(&mut self, additional: usize) {
         self.underlying.reserve(additional);
-        self.map.reserve(additional);
+        self.position_map.reserve(additional);
         self.order.reserve(additional);
     }
 }
@@ -179,50 +179,6 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
 // Implementations of traits just taken from the HashMap implementation.
 
 
-pub struct IntoIter<K, V> {
-    inner: <Vec<Rc<K>> as IntoIterator>::IntoIter,
-    underlying: HashMap<Rc<K>, V>,
-    map: HashMap<Rc<K>, usize>,
-}
-
-impl<K, V> Iterator for IntoIter<K, V> 
-where K: ::std::cmp::Eq + ::std::hash::Hash + ::std::fmt::Debug {
-    type Item = (K, V);
-    fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next()
-            .map(|next_key| {
-                // TODO Why do I need to add type annotations here?
-                // As far as I can see in the Rc<> documentation, there's only one type that Borrow
-                // is implemented for.
-                self.map.remove(next_key.borrow() as &K);
-                // Invariants of the structure mean this should always work.
-                // The Rc<K> is never given out (just references to the underlying K) so
-                // Rc::try_unwrap() should work.
-                // Everything added to the order vector is also added into the map, and they're
-                // removed at the same time too, so the final unwrap() should work too.
-                //
-                // TODO Proper error messages?
-                self.underlying.remove(next_key.borrow() as &K)
-                    .map(|x| (Rc::try_unwrap(next_key).unwrap(), x))
-                    .unwrap()
-            })
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) { self.inner.size_hint() }
-}
-
-impl<K, V> IntoIterator for OrderedDict<K, V>
-where K: ::std::cmp::Eq + ::std::hash::Hash + ::std::fmt::Debug {
-    type Item = (K, V);
-    type IntoIter = IntoIter<K, V>;
-    fn into_iter(self) -> Self::IntoIter {
-        IntoIter {
-            inner: self.order.into_iter(),
-            underlying: self.underlying,
-            map: self.map,
-        }
-    }
-}
 
 pub struct IterMut<'a, K: 'a, V: 'a> {
     order_iter: ::std::slice::Iter<'a, Rc<K>>,
@@ -264,6 +220,62 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
     }
 }
 
+impl<'a, K, V> IntoIterator for &'a mut OrderedDict<K, V>
+where K: ::std::cmp::Eq + ::std::hash::Hash {
+    type Item = (&'a K, &'a mut V);
+    type IntoIter = IterMut<'a, K, V>;
+    fn into_iter(self) -> IterMut<'a, K, V> {
+        self.iter_mut()
+    }
+}
+
+pub struct IntoIter<K, V> {
+    inner: <Vec<Rc<K>> as IntoIterator>::IntoIter,
+    underlying: HashMap<Rc<K>, V>,
+}
+
+impl<K, V> Iterator for IntoIter<K, V> 
+where K: ::std::cmp::Eq + ::std::hash::Hash + ::std::fmt::Debug {
+    type Item = (K, V);
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next()
+            .map(|next_key| {
+                // Invariants of the structure mean this should always work.
+                // The Rc<K> is never given out (just references to the underlying K) so
+                // Rc::try_unwrap() should work.
+                // Everything added to the order vector is also added into the map, and they're
+                // removed at the same time too, so the final unwrap() should work too.
+                //
+                // TODO Proper error messages?
+                self.underlying.remove(next_key.borrow() as &K)
+                    .map(|x| (Rc::try_unwrap(next_key).unwrap(), x))
+                    .unwrap()
+            })
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) { self.inner.size_hint() }
+}
+
+impl<K, V> IntoIterator for OrderedDict<K, V>
+where K: ::std::cmp::Eq + ::std::hash::Hash + ::std::fmt::Debug {
+    type Item = (K, V);
+    type IntoIter = IntoIter<K, V>;
+    fn into_iter(self) -> Self::IntoIter {
+        IntoIter {
+            inner: self.order.into_iter(),
+            underlying: self.underlying,
+        }
+    }
+}
+impl<K, V> FromIterator<(K, V)> for OrderedDict<K, V>
+where K: ::std::cmp::Eq + ::std::hash::Hash {
+    fn from_iter<T: IntoIterator<Item = (K, V)>>(iter: T) -> OrderedDict<K, V> {
+        let mut ret = OrderedDict::new();
+        ret.extend(iter);
+        ret
+    }
+}
+
 impl<K, V> Extend<(K, V)> for OrderedDict<K, V>
 where K: ::std::cmp::Eq + ::std::hash::Hash {
     fn extend<T: IntoIterator<Item = (K, V)>>(&mut self, iter: T) {
@@ -285,15 +297,6 @@ where K: ::std::cmp::Eq + ::std::hash::Hash + ::std::marker::Copy,
       V: ::std::marker::Copy {
     fn extend<T: IntoIterator<Item = (&'a K,&'a V)>>(&mut self, iter: T) {
         self.extend(iter.into_iter().map(|(&key, &value)| (key, value)));
-    }
-}
-
-impl<K, V> FromIterator<(K, V)> for OrderedDict<K, V>
-where K: ::std::cmp::Eq + ::std::hash::Hash {
-    fn from_iter<T: IntoIterator<Item = (K, V)>>(iter: T) -> OrderedDict<K, V> {
-        let mut ret = OrderedDict::new();
-        ret.extend(iter);
-        ret
     }
 }
 
@@ -356,6 +359,13 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(items_in_order, inserted_items);
 
+        // Testing IntoIterator for &'a mut
+        for (map_item, check_item) in (&mut mydict).into_iter().zip(&inserted_items) {
+            assert_eq!(map_item.0, &check_item.0);
+            assert_eq!(map_item.1, &check_item.1);
+        }
+
+        // Testing IntoIterator for moved value
         for (map_item, check_item) in mydict.into_iter().zip(inserted_items) {
             assert_eq!(map_item, check_item);
         }
