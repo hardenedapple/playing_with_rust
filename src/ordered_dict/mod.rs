@@ -153,7 +153,9 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
     }
     pub fn iter_mut(&mut self) -> IterMut<K, V> {
         IterMut {
-            underlying_hash: &mut self.underlying,
+            hidden: Hidden {
+                underlying_hash: &mut self.underlying,
+            },
             order_iter: self.order.iter(),
         }
     }
@@ -224,6 +226,9 @@ where K: ::std::cmp::Eq + ::std::hash::Hash + ::std::fmt::Debug {
 
 pub struct IterMut<'a, K: 'a, V: 'a> {
     order_iter: ::std::slice::Iter<'a, Rc<K>>,
+    hidden: Hidden<'a, K, V>,
+}
+struct Hidden<'a, K: 'a, V: 'a> {
     underlying_hash: &'a mut HashMap<Rc<K>, V>,
 }
 
@@ -232,26 +237,29 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
     type Item = (&'a K, &'a mut V);
     fn next(&mut self) -> Option<Self::Item> {
         // Invariants from structure should mean the `unwraps()` are fine.
-        // Unfortunately, there are some difficulties with the borrow checker.
-        // I want to give the caller a reference to the `K` type, as I'm basically mocking
-        // the interface of a `std::collections:HashMap`.
-        // The question then is ... what reference should I give the user?
-        // I should give the user a reference to the key in the 
-
-        // TODO I do something `unsafe` here.
-        // I really need to double check that doesn't do anything incorrect.
-        // The main question is the same one that the borrow checker had ... is it OK to get a
-        // reference something in the IterMut<> that lasts longer than the reference whoever called
-        // this function already had??
         //
-        // There's a second question ... why is the borrow checker OK with OrderedIter.next()?
-        // It returns a reference to a member in the OrderedIter that has a lifetime longer than
-        // the mutable reference given to the `next()` method.
+        // NOTE I do something `unsafe` here, this is the justification:
+        // 1)   I know the reference to be valid for the lifetime I give because it is the same
+        //      lifetime as the mutable reference to the HashMap<> in my structure.
+        // 2)   I know that no-one can get another reference to the same object at the same time
+        //      because:
+        //      - The `IterMut.hidden_struct` member is not public
+        //      - I don't give out any other references to a given value
+        //      - I have a mutable reference to the HashMap<>, which means no-one else can have any
+        //        reference to any part of it.
+        // 
+        // As an aside ... I'm surprised that the borrow checker is smart enough to figure out that
+        // the `OrderedIter.next()` method is OK.
+        // I guess it figures that out because it can tell that the lifetime given as the returned
+        // value from the method is the same lifetime as that in the structure.
+        // Given that it knows there is already an immutably borrowed reference to the same
+        // structure for the same amount of time, so it doesn't have to know anything else ... that
+        // lifetime has already been validated.
         self.order_iter.next()
             .map(::std::ops::Deref::deref)
             .map(|k|
                  (k, unsafe {
-                     &mut *{self.underlying_hash.get_mut(k).unwrap() as *mut V}
+                     &mut *{self.hidden.underlying_hash.get_mut(k).unwrap() as *mut V}
                  }))
     }
 }
@@ -369,6 +377,13 @@ mod tests {
         do_check(&mydict, String::from("Other test"), 2, 7);
     }
 
+
+    /*
+     * TODO
+     *      Test ideas:
+     *          All `.get()`, `.insert()`, `.remove()` operations give the same observable
+     *          behaviour as the same ones applied to `HashMap<>`.
+     */
 }
 
 
