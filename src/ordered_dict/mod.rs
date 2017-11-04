@@ -83,7 +83,7 @@ impl<'a, K, V> Iterator for OrderedValues<'a, K, V>
 //      Allow deletion of elements in the hash map (i.e. use LinkedList<>)
 //      Flesh out the interface by adding IntoIter implementations etc.
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct OrderedDict<K, V> 
 where K: ::std::cmp::Eq + ::std::hash::Hash {
     // map of keys to values
@@ -129,6 +129,7 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
             }
         }
     }
+    // TODO Implement for Q where K: Borrow<Q>
     pub fn get(&self, k: &K) -> Option<&V> { self.underlying.get(k) }
     pub fn iter(&self) -> Iter<K, V> {
         Iter {
@@ -153,7 +154,7 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
     }
     pub fn iter_mut(&mut self) -> IterMut<K, V> {
         IterMut {
-            hidden: Hidden {
+            hidden: IterMutHidden {
                 underlying_hash: &mut self.underlying,
             },
             order_iter: self.order.iter(),
@@ -178,13 +179,31 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
 
 // Implementations of traits just taken from the HashMap implementation.
 
+impl<'a, K, V> ::std::ops::Index<&'a K> for OrderedDict<K, V>
+where K: ::std::cmp::Eq + ::std::hash::Hash {
+    // TODO Implement for Q where K: Borrow<Q>
+    type Output = V;
+    fn index(&self, index: &K) -> &V {
+        self.underlying.index(index)
+    }
 
+}
+
+impl<'a, K, V> IntoIterator for &'a OrderedDict<K, V>
+where K: ::std::cmp::Eq + ::std::hash::Hash {
+    type Item = (&'a K, &'a V);
+    type IntoIter = Iter<'a, K, V>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
 
 pub struct IterMut<'a, K: 'a, V: 'a> {
     order_iter: ::std::slice::Iter<'a, Rc<K>>,
-    hidden: Hidden<'a, K, V>,
+    hidden: IterMutHidden<'a, K, V>,
 }
-struct Hidden<'a, K: 'a, V: 'a> {
+
+struct IterMutHidden<'a, K: 'a, V: 'a> {
     underlying_hash: &'a mut HashMap<Rc<K>, V>,
 }
 
@@ -224,7 +243,7 @@ impl<'a, K, V> IntoIterator for &'a mut OrderedDict<K, V>
 where K: ::std::cmp::Eq + ::std::hash::Hash {
     type Item = (&'a K, &'a mut V);
     type IntoIter = IterMut<'a, K, V>;
-    fn into_iter(self) -> IterMut<'a, K, V> {
+    fn into_iter(self) -> Self::IntoIter {
         self.iter_mut()
     }
 }
@@ -243,10 +262,13 @@ where K: ::std::cmp::Eq + ::std::hash::Hash + ::std::fmt::Debug {
                 // Invariants of the structure mean this should always work.
                 // The Rc<K> is never given out (just references to the underlying K) so
                 // Rc::try_unwrap() should work.
+                //  (any references to the underlying K will have been dropped already, as their
+                //  lifetimes would be limited by some reference to Rc<K>, and we have been given
+                //  the Rc<> struct).
                 // Everything added to the order vector is also added into the map, and they're
                 // removed at the same time too, so the final unwrap() should work too.
                 //
-                // TODO Proper error messages?
+                // TODO Proper error messages in case my reasoning above is wrong?
                 self.underlying.remove(next_key.borrow() as &K)
                     .map(|x| (Rc::try_unwrap(next_key).unwrap(), x))
                     .unwrap()
@@ -267,6 +289,7 @@ where K: ::std::cmp::Eq + ::std::hash::Hash + ::std::fmt::Debug {
         }
     }
 }
+
 impl<K, V> FromIterator<(K, V)> for OrderedDict<K, V>
 where K: ::std::cmp::Eq + ::std::hash::Hash {
     fn from_iter<T: IntoIterator<Item = (K, V)>>(iter: T) -> OrderedDict<K, V> {
@@ -359,6 +382,11 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(items_in_order, inserted_items);
 
+        // Testing IntoIterator for &'a
+        for (map_item, check_item) in (&mydict).into_iter().zip(&inserted_items) {
+            assert_eq!(map_item.0, &check_item.0);
+            assert_eq!(map_item.1, &check_item.1);
+        }
         // Testing IntoIterator for &'a mut
         for (map_item, check_item) in (&mut mydict).into_iter().zip(&inserted_items) {
             assert_eq!(map_item.0, &check_item.0);
