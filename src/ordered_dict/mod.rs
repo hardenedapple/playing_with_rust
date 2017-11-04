@@ -160,9 +160,9 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
             order_iter: self.order.iter(),
         }
     }
-    // fn keys_mut(&mut self)
-    // fn values_mut(&mut self)
-    // fn entry(&mut self, key: K)
+    pub fn values_mut(&mut self) -> ValuesMut<K, V> {
+        ValuesMut { inner: self.iter_mut() }
+    }
     pub fn len(&self) -> usize { self.order.len() }
     pub fn is_empty(&self) -> bool { self.order.is_empty() }
     // fn drain(&mut self) -> Drain<K, V>
@@ -193,6 +193,20 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
         self.order.reserve(additional);
     }
 }
+
+pub struct ValuesMut<'a, K: 'a, V: 'a> {
+    inner: IterMut<'a, K, V>
+}
+
+impl<'a, K, V> Iterator for ValuesMut<'a, K, V>
+where K: ::std::cmp::Eq + ::std::hash::Hash {
+    type Item = &'a mut V;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next()
+            .map(|(_k, v)| v)
+    }
+}
+
 
 // Implementations of traits just taken from the HashMap implementation.
 
@@ -432,6 +446,19 @@ mod tests {
         // Testing IntoIterator for moved value
         for (map_item, check_item) in mydict.into_iter().zip(inserted_items) {
             assert_eq!(map_item, check_item);
+        }
+    }
+
+    #[test]
+    fn iterate_mutable_values() {
+        // Check that I can change the values in the hash map using the references I get from
+        // values_mut()
+        let (mut mydict, _inserted_items) = create_default();
+        for value in mydict.values_mut() {
+            *value = 10;
+        }
+        for value in mydict.values_mut() {
+            assert_eq!(*value, 10);
         }
     }
 
