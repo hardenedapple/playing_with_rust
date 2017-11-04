@@ -186,6 +186,7 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
         self.position_map.retain(|k, _v| keys_to_remove.contains(k));
         self.order.retain(|k| keys_to_remove.contains(k));
     }
+
     pub fn reserve(&mut self, additional: usize) {
         self.underlying.reserve(additional);
         self.position_map.reserve(additional);
@@ -345,11 +346,10 @@ mod tests {
 
     fn do_check(set: &OrderedDict<String, usize>, key: String, index: usize, v: usize) {
         // Check fetching directly ...
-        if let Some(value) = set.get(&key) {
-            println!("{} should equal {}", value, v);
-        } else {
-            panic!("Could not retrieve value from OrderedDict");
-        }
+        assert_eq!(
+            set.get(&key).expect("Could not retrieve value from OrderedDict"),
+            &v
+        );
 
         // Check fetching in order ...
         match set.iter()
@@ -437,7 +437,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "\"2\"th element did not match")]
+    #[should_panic(expected = "assertion failed: `(left == right)`")]
     fn can_see_false() {
         let mut mydict = OrderedDict::new();
         mydict.insert(String::from("Other test"), 6);
