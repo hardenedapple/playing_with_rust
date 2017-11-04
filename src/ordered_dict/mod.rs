@@ -165,10 +165,24 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
     }
     pub fn len(&self) -> usize { self.order.len() }
     pub fn is_empty(&self) -> bool { self.order.is_empty() }
+
+    // fn entry(&mut self, key: K)
     // fn drain(&mut self) -> Drain<K, V>
-    // fn clear(&mut self)
-    // fn contains_key(&self, k: &Q)
-    // get_mut
+
+    pub fn clear(&mut self) {
+        self.position_map.clear();
+        self.underlying.clear();
+        self.order.clear();
+    }
+
+    // TODO Implement for Q where K: Borrow<Q>
+    pub fn contains_key(&self, k: &K) -> bool {
+        self.underlying.contains_key(k)
+    }
+    // TODO Implement for Q where K: Borrow<Q>
+    pub fn get_mut(&mut self, k: &K) -> Option<&mut V> {
+        self.underlying.get_mut(k)
+    }
 
     pub fn retain<F>(&mut self, mut f: F) 
     where F: FnMut(&K, &mut V) -> bool {
