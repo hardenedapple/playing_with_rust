@@ -1,4 +1,4 @@
-use std::collections:: HashMap;
+use std::collections::{ HashMap, HashSet };
 use std::rc::Rc;
 use std::iter::FromIterator;
 use std::borrow::Borrow;
@@ -169,7 +169,23 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
     // fn clear(&mut self)
     // fn contains_key(&self, k: &Q)
     // get_mut
-    // retain
+
+    pub fn retain<F>(&mut self, mut f: F) 
+    where F: FnMut(&K, &mut V) -> bool {
+        let mut keys_to_remove: HashSet<Rc<K>> = HashSet::new();
+        {
+            let wrapped_closure = |k: &Rc<K>, v: &mut V| {
+                if f(&*k, v) { false }
+                else {
+                    keys_to_remove.insert(k.clone());
+                    true
+                }
+            };
+            self.underlying.retain(wrapped_closure);
+        }
+        self.position_map.retain(|k, _v| keys_to_remove.contains(k));
+        self.order.retain(|k| keys_to_remove.contains(k));
+    }
     pub fn reserve(&mut self, additional: usize) {
         self.underlying.reserve(additional);
         self.position_map.reserve(additional);
@@ -362,6 +378,19 @@ mod tests {
         do_check(&mydict, String::from("Other test"), 2, 6);
         do_check(&mydict, String::from("Test string"), 1, 15);
         do_check(&mydict, String::from("Other test"), 2, 6);
+
+        mydict.insert(String::from("test"), 8);
+        // n.b. I don't really follow this ...
+        // The docs say "remove all pairs (k, v) such that f(&k, &mut v) returns false"
+        // This should mean that the below function removes all (k, v) such that x != 't', which is
+        // the opposite of what happens.
+        mydict.retain(
+            |k, _v| { 
+            match k.chars().next() {
+                Some(x) => x == 't',
+                None => false
+            }
+        });
 
         let keys_in_order = mydict.keys()
             .map(|x| x.clone())
