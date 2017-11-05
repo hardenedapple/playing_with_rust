@@ -78,7 +78,6 @@ impl<'a, K, V> Iterator for OrderedValues<'a, K, V>
         fn size_hint(&self) -> (usize, Option<usize>) { self.underlying.size_hint() }
     }
 
-
 // TODO
 //      Allow deletion of elements in the hash map (i.e. use LinkedList<>)
 //      Flesh out the interface by adding IntoIter implementations etc.
@@ -129,8 +128,11 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
             }
         }
     }
-    // TODO Implement for Q where K: Borrow<Q>
-    pub fn get(&self, k: &K) -> Option<&V> { self.underlying.get(k) }
+    pub fn get<Q>(&self, k: &Q) -> Option<&V> 
+    where Rc<K>: ::std::borrow::Borrow<Q>,
+          Q: ::std::cmp::Eq + ::std::hash::Hash {
+        self.underlying.get(k)
+    }
     pub fn iter(&self) -> Iter<K, V> {
         Iter {
             order_iter: self.order.iter(),
@@ -166,8 +168,9 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
     pub fn len(&self) -> usize { self.order.len() }
     pub fn is_empty(&self) -> bool { self.order.is_empty() }
 
-    // fn entry(&mut self, key: K)
-    // fn drain(&mut self) -> Drain<K, V>
+    // TODO implement the below
+    // pub fn entry(&mut self, key: K) -> Entry<K, V>
+    // pub fn drain(&mut self) -> Drain<K, V>
 
     pub fn clear(&mut self) {
         self.position_map.clear();
@@ -175,12 +178,14 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
         self.order.clear();
     }
 
-    // TODO Implement for Q where K: Borrow<Q>
-    pub fn contains_key(&self, k: &K) -> bool {
+    pub fn contains_key<Q>(&self, k: &Q) -> bool 
+    where Rc<K>: ::std::borrow::Borrow<Q>,
+          Q: ::std::cmp::Eq + ::std::hash::Hash {
         self.underlying.contains_key(k)
     }
-    // TODO Implement for Q where K: Borrow<Q>
-    pub fn get_mut(&mut self, k: &K) -> Option<&mut V> {
+    pub fn get_mut<Q>(&mut self, k: &Q) -> Option<&mut V> 
+    where Rc<K>: ::std::borrow::Borrow<Q>,
+          Q: ::std::cmp::Eq + ::std::hash::Hash {
         self.underlying.get_mut(k)
     }
 
@@ -224,11 +229,12 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
 
 // Implementations of traits just taken from the HashMap implementation.
 
-impl<'a, K, V> ::std::ops::Index<&'a K> for OrderedDict<K, V>
-where K: ::std::cmp::Eq + ::std::hash::Hash {
-    // TODO Implement for Q where K: Borrow<Q>
+impl<'a, Q, K, V> ::std::ops::Index<&'a Q> for OrderedDict<K, V>
+where Rc<K>: ::std::borrow::Borrow<Q>,
+      K: ::std::cmp::Eq + ::std::hash::Hash,
+      Q: ::std::cmp::Eq + ::std::hash::Hash {
     type Output = V;
-    fn index(&self, index: &K) -> &V {
+    fn index(&self, index: &Q) -> &V {
         self.underlying.index(index)
     }
 
