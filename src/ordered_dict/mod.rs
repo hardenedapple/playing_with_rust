@@ -83,11 +83,82 @@ impl<'a, K, V> Iterator for OrderedValues<'a, K, V>
 //      Flesh out the interface by adding IntoIter implementations etc.
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct OrderedDict<K, V> 
+struct MapLink<K> {
+    next: Option<Rc<K>>,
+    prev: Option<Rc<K>>
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+struct OrderLinkMap<K>
+where K: ::std::cmp::Eq + ::std::hash::Hash {
+    head: Option<Rc<K>>,
+    tail: Option<Rc<K>>,
+    hash: HashMap<Rc<K>, MapLink<K>>,
+}
+
+impl<K> OrderLinkMap<K>
+where K: ::std::cmp::Eq + ::std::hash::Hash {
+    fn new() -> OrderLinkMap<K> {
+        OrderLinkMap {
+            head: None,
+            tail: None,
+            hash: HashMap::new(),
+        }
+    }
+    // We check whether the entry already exists in the link map for correctness.
+    // The fact that we don't insert anything if the entry already exists is never actually used.
+    // It's simply something that makes sense for this data structure.
+    fn insert(&mut self, k: Rc<K>) {
+        if self.hash.contains_key(&k) {
+            return;
+        }
+        match self.tail {
+            Some(ref x) => {
+                self.hash.get_mut(x)
+                    .expect("OrderLinkMap corrupt! self.tail points to a missing key.")
+                    .next = Some(k.clone());
+
+                self.hash.insert(k, MapLink {
+                    next: None,
+                    prev: Some(x.clone()),
+                });
+
+                assert!(self.head.is_some());
+            },
+            None => {
+                assert!(self.head.is_none());
+                self.head = Some(k.clone());
+                self.tail = Some(k.clone());
+                self.hash.insert(k, MapLink {
+                    next: None,
+                    prev: None
+                });
+            }
+        }
+    }
+    fn clear(&mut self) {
+        self.hash.clear();
+        self.tail = None;
+        self.head = None;
+    }
+
+    // // n.b. this will have to be more complicated than a simple self.hash.retain() as I need to
+    // update links at the same time.
+    // fn retain(&mut self, f: F)
+    // where F: FnMut(&K, &mut V) -> bool {
+    //
+    // }
+
+    fn reserve(&mut self, additional: usize) { self.hash.reserve(additional) }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct OrderedDict<K, V>
 where K: ::std::cmp::Eq + ::std::hash::Hash {
     // map of keys to values
     underlying: HashMap<Rc<K>, V>,
     // map of keys to positions in the vector
+    order_link_map: OrderLinkMap<K>,
     position_map: HashMap<Rc<K>, usize>,
     // TODO Implement my own doubly linked list.
     // That way I can rely on the implementation, and store Shared<T> pointers in the rest of the
@@ -113,17 +184,20 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
     pub fn new() -> OrderedDict<K, V> {
         OrderedDict {
             underlying: HashMap::new(),
+            order_link_map: OrderLinkMap::new(),
             position_map: HashMap::new(),
             order: Vec::new(),
         }
     }
     pub fn insert(&mut self, k: K, v: V) -> Option<V> {
-        let refcell = Rc::new(k);
-        match self.underlying.insert(refcell.clone(), v) {
+        let ptr = Rc::new(k);
+        match self.underlying.insert(ptr.clone(), v) {
             Some(v) => Some(v),
             None => {
-                self.order.push(refcell.clone());
-                self.position_map.insert(refcell.clone(), self.order.len() - 1);
+                self.order_link_map.insert(ptr.clone());
+                // TODO Once have switched over to OrderLinkMap, need to delete these lines vimcmd: .,+2d
+                self.order.push(ptr.clone());
+                self.position_map.insert(ptr.clone(), self.order.len() - 1);
                 None
             }
         }
@@ -135,6 +209,7 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
     }
     pub fn iter(&self) -> Iter<K, V> {
         Iter {
+            // TODO Need to switch the Iter<> structure over to using the OrderLinkMap
             order_iter: self.order.iter(),
             underlying_hash: &self.underlying
         }
@@ -142,6 +217,8 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
     // TODO This will change when I've implemented a LinkedList that I can rely on the internal
     // structure of.
     pub fn remove(&mut self, k: &K) -> Option<V> {
+
+        // TODO Once have switched over to OrderLinkMap, need to delete these lines vimcmd: .,+2d
         self.position_map.remove(k)
             .map(|v| Some(self.order.remove(v)));
         self.underlying.remove(k)
@@ -155,6 +232,7 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
         OrderedValues { underlying: self.iter() }
     }
     pub fn iter_mut(&mut self) -> IterMut<K, V> {
+        // TODO Switch IterMut structure over to using the OrderLinkMap
         IterMut {
             hidden: IterMutHidden {
                 underlying_hash: &mut self.underlying,
@@ -165,16 +243,18 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
     pub fn values_mut(&mut self) -> ValuesMut<K, V> {
         ValuesMut { inner: self.iter_mut() }
     }
-    pub fn len(&self) -> usize { self.order.len() }
-    pub fn is_empty(&self) -> bool { self.order.is_empty() }
+    pub fn len(&self) -> usize { self.underlying.len() }
+    pub fn is_empty(&self) -> bool { self.underlying.is_empty() }
 
     // TODO implement the below
     // pub fn entry(&mut self, key: K) -> Entry<K, V>
     // pub fn drain(&mut self) -> Drain<K, V>
 
     pub fn clear(&mut self) {
-        self.position_map.clear();
         self.underlying.clear();
+        self.order_link_map.clear();
+        // TODO Once have switched over to OrderLinkMap, need to delete these lines vimcmd: .,+2d
+        self.position_map.clear();
         self.order.clear();
     }
 
@@ -202,12 +282,17 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
             };
             self.underlying.retain(wrapped_closure);
         }
+        // self.order_link_map.retain(|k, _v| keys_to_remove.contains(k))
+
+        // TODO Once have switched over to OrderLinkMap, need to delete these lines vimcmd: .,+2d
         self.position_map.retain(|k, _v| keys_to_remove.contains(k));
         self.order.retain(|k| keys_to_remove.contains(k));
     }
 
     pub fn reserve(&mut self, additional: usize) {
         self.underlying.reserve(additional);
+        self.order_link_map.reserve(additional);
+        // TODO Once have switched over to OrderLinkMap, need to delete these lines vimcmd: .,+2d
         self.position_map.reserve(additional);
         self.order.reserve(additional);
     }
@@ -506,21 +591,3 @@ mod tests {
      *          behaviour as the same ones applied to `HashMap<>`.
      */
 }
-
-
-// --------------------------------------------------------------------------------
-//  Allow deletion of elements in the hash map.
-// --------------------------------------------------------------------------------
-// Switch Vec<> for LinkedList<>, add all the public HashMap<> methods, with special
-// accounting for deletion.
-
-// --------------------------------------------------------------------------------
-//  Flesh out the interface to match the Rust HashMap.
-// --------------------------------------------------------------------------------
-// Implement IntoIter too ... iterate over the values in the `order` member, getting the full item
-// from the `underlying` member.
-
-
-// --------------------------------------------------------------------------------
-//  Generalise over arbitrary keys and values.
-// --------------------------------------------------------------------------------
