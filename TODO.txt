@@ -6,7 +6,7 @@ Make convenience functions for seeded_rng()
     test_utils:: that creates a single random value from a seeded Rng
     structure.
     
-    This would make some code look better with the downside that messegase may
+    This would make some code look better with the downside that messages may
     be printed out more than once.
     
     If there is some way to not print out messages more than once (maybe with
