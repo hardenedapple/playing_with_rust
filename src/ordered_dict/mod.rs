@@ -18,15 +18,17 @@ use std::borrow::Borrow;
 //          entry in the tuple would be the key for the "next" entry.
 //      Either way, I will need to add in a "head" and "tail" member into the OrderedDict so as to
 //      be able to start the iteration.
-//  
+//
 //
 // What about just keeping on using the Vec<T>?
 // Unless removal of entries is a common occurance it shouldn't give too much of a performance
 // impact.
 
-pub struct Iter<'a, K: 'a, V: 'a> {
-        order_iter: ::std::slice::Iter<'a, Rc<K>>,
+pub struct Iter<'a, K: 'a, V: 'a>
+where K: ::std::cmp::Eq + ::std::hash::Hash {
+        order_link_map: &'a OrderLinkMap<K>,
         underlying_hash: &'a HashMap<Rc<K>, V>,
+        current: Option<&'a Rc<K>>,
 }
 
 // TODO
@@ -37,17 +39,32 @@ impl<'a, K, V> Iterator for Iter<'a, K, V>
     where K: ::std::cmp::Eq + ::std::hash::Hash {
     type Item = (&'a K, &'a V);
     fn next(&mut self) -> Option<Self::Item> {
-        // TODO give a valid error message instead of just failing on `unwrap()`.
-        // Failing on `unwrap()` should never happen, all elements in the `order_iter` should be in
-        // `underlying_hash`, this is an invariant by design.
-        // If something goes wrong here we *should* panic, but at the same time we should give
-        // a nice error message to the user rather than a cryptic one that just comes from the
-        // implementation details.
-        self.order_iter.next()
-            .map(::std::ops::Deref::deref)
-            .map(|k| (k, self.underlying_hash.get(k).unwrap()))
+        // Failing on `expect()` should never happen, all elements in the `order_link_map` should
+        // be in `underlying_hash`, this is an invariant by design.
+        // If something goes wrong here we *should* panic.
+
+        // Update the "current" pointer to the next one in order.
+        self.current = match self.current {
+            Some(k) => match self.order_link_map.get(k) {
+                Some(map_link) => map_link.next.iter().next(),
+                None => None
+            },
+            None => self.order_link_map.head.iter().next()
+        };
+
+        // Fetch that "current" pointer.
+        match self.current {
+            Some(k) => Some((&**k, self.underlying_hash.get(k)
+                             .expect("OrderedDict corrupt! Ordered key missing in HashMap"))),
+            None => None
+        }
     }
-    fn size_hint(&self) -> (usize, Option<usize>) { self.order_iter.size_hint() }
+    // // TODO implement this ...
+    // // I should be able to keep a simple count of how many items I've iterated over, and compare
+    // // that to `underlying_hash.len()`.
+    // // This would also allow checking an invariant .. that I only run out of keys once I've given
+    // // out a reference to all the keys in `underlying_hash`.
+    // fn size_hint(&self) -> (usize, Option<usize>) { self.order_iter.size_hint() }
 }
 
 pub struct OrderedKeys<'a, K: 'a, V: 'a>
@@ -118,7 +135,7 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
                     .expect("OrderLinkMap corrupt! self.tail points to a missing key.")
                     .next = Some(k.clone());
 
-                self.hash.insert(k, MapLink {
+                self.hash.insert(k.clone(), MapLink {
                     next: None,
                     prev: Some(x.clone()),
                 });
@@ -128,13 +145,13 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
             None => {
                 assert!(self.head.is_none());
                 self.head = Some(k.clone());
-                self.tail = Some(k.clone());
-                self.hash.insert(k, MapLink {
+                self.hash.insert(k.clone(), MapLink {
                     next: None,
                     prev: None
                 });
             }
         }
+        self.tail = Some(k);
     }
     fn clear(&mut self) {
         self.hash.clear();
@@ -142,14 +159,57 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
         self.head = None;
     }
 
-    // // n.b. this will have to be more complicated than a simple self.hash.retain() as I need to
-    // update links at the same time.
-    // fn retain(&mut self, f: F)
-    // where F: FnMut(&K, &mut V) -> bool {
-    //
-    // }
+    // Don't need the same call-signature as HashMap<> ... we're not emulating anything here, just
+    // creating something for our very limited use-case.
+    fn get(&self, k: &Rc<K>) -> Option<&MapLink<K>> { self.hash.get(k) }
+
+    // I don't like how un-performant this is..
+    // Don't even bothen with a similar call signature to HashMap<>  ... this is a different thing.
+    fn retain<F>(&mut self, mut f: F)
+    where F: FnMut(&K) -> bool {
+        let keys_to_remove = self.hash.iter_mut()
+            .filter_map(
+                |(k, _value)|
+                if f(k) {
+                    None
+                } else {
+                    Some(k.clone())
+                })
+            .collect::<Vec<_>>();
+        for key in keys_to_remove.iter() {
+            self.remove(&*key);
+        }
+    }
 
     fn reserve(&mut self, additional: usize) { self.hash.reserve(additional) }
+
+    // Don't even bothen with a similar call signature to HashMap<> ... this is a different thing.
+    fn remove(&mut self, k: &K) {
+        if let Some(x) = self.hash.remove(k)  {
+            match x.next {
+                // x.next == None   <=>  k is the tail
+                Some(ref next_link) => {
+                    self.hash.get_mut(next_link)
+                        .expect("E:Remove 225")
+                        .prev = x.prev.clone();
+                },
+                None => {
+                    self.tail = x.prev.clone()
+                }
+            };
+            match x.prev {
+                // x.prev == None   <=>  k is the head
+                Some(ref prev_link) => {
+                    self.hash.get_mut(prev_link)
+                        .expect("E:Remove 2")
+                        .next = x.next
+                },
+                None => {
+                    self.head = x.next
+                }
+            };
+        };
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -165,7 +225,7 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
     // OrderedDict structure.
     // When storing Shared<T> pointers I can make remove() O(1)
     //  This would be done in the same way as the reference python implementation of OrderedDict.
-    //  That class stores 
+    //  That class stores
     //      1) an underlying dictionary of keys and values.
     //      2) a map of keys to LinkedList nodes
     //      3) a linked list of elements
@@ -179,7 +239,7 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
     order: Vec<Rc<K>>,
 }
 
-impl<K, V> OrderedDict<K, V> 
+impl<K, V> OrderedDict<K, V>
 where K: ::std::cmp::Eq + ::std::hash::Hash {
     pub fn new() -> OrderedDict<K, V> {
         OrderedDict {
@@ -195,32 +255,24 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
             Some(v) => Some(v),
             None => {
                 self.order_link_map.insert(ptr.clone());
-                // TODO Once have switched over to OrderLinkMap, need to delete these lines vimcmd: .,+2d
-                self.order.push(ptr.clone());
-                self.position_map.insert(ptr.clone(), self.order.len() - 1);
                 None
             }
         }
     }
-    pub fn get<Q>(&self, k: &Q) -> Option<&V> 
+    pub fn get<Q>(&self, k: &Q) -> Option<&V>
     where Rc<K>: ::std::borrow::Borrow<Q>,
           Q: ::std::cmp::Eq + ::std::hash::Hash {
         self.underlying.get(k)
     }
     pub fn iter(&self) -> Iter<K, V> {
         Iter {
-            // TODO Need to switch the Iter<> structure over to using the OrderLinkMap
-            order_iter: self.order.iter(),
-            underlying_hash: &self.underlying
+            order_link_map: &self.order_link_map,
+            underlying_hash: &self.underlying,
+            current: None,
         }
     }
-    // TODO This will change when I've implemented a LinkedList that I can rely on the internal
-    // structure of.
     pub fn remove(&mut self, k: &K) -> Option<V> {
-
-        // TODO Once have switched over to OrderLinkMap, need to delete these lines vimcmd: .,+2d
-        self.position_map.remove(k)
-            .map(|v| Some(self.order.remove(v)));
+        self.order_link_map.remove(k);
         self.underlying.remove(k)
     }
     pub fn keys(&self) -> OrderedKeys<K, V> {
@@ -232,7 +284,6 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
         OrderedValues { underlying: self.iter() }
     }
     pub fn iter_mut(&mut self) -> IterMut<K, V> {
-        // TODO Switch IterMut structure over to using the OrderLinkMap
         IterMut {
             hidden: IterMutHidden {
                 underlying_hash: &mut self.underlying,
@@ -253,23 +304,20 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
     pub fn clear(&mut self) {
         self.underlying.clear();
         self.order_link_map.clear();
-        // TODO Once have switched over to OrderLinkMap, need to delete these lines vimcmd: .,+2d
-        self.position_map.clear();
-        self.order.clear();
     }
 
-    pub fn contains_key<Q>(&self, k: &Q) -> bool 
+    pub fn contains_key<Q>(&self, k: &Q) -> bool
     where Rc<K>: ::std::borrow::Borrow<Q>,
           Q: ::std::cmp::Eq + ::std::hash::Hash {
         self.underlying.contains_key(k)
     }
-    pub fn get_mut<Q>(&mut self, k: &Q) -> Option<&mut V> 
+    pub fn get_mut<Q>(&mut self, k: &Q) -> Option<&mut V>
     where Rc<K>: ::std::borrow::Borrow<Q>,
           Q: ::std::cmp::Eq + ::std::hash::Hash {
         self.underlying.get_mut(k)
     }
 
-    pub fn retain<F>(&mut self, mut f: F) 
+    pub fn retain<F>(&mut self, mut f: F)
     where F: FnMut(&K, &mut V) -> bool {
         let mut keys_to_remove: HashSet<Rc<K>> = HashSet::new();
         {
@@ -282,19 +330,12 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
             };
             self.underlying.retain(wrapped_closure);
         }
-        // self.order_link_map.retain(|k, _v| keys_to_remove.contains(k))
-
-        // TODO Once have switched over to OrderLinkMap, need to delete these lines vimcmd: .,+2d
-        self.position_map.retain(|k, _v| keys_to_remove.contains(k));
-        self.order.retain(|k| keys_to_remove.contains(k));
+        self.order_link_map.retain(|k| keys_to_remove.contains(k));
     }
 
     pub fn reserve(&mut self, additional: usize) {
         self.underlying.reserve(additional);
         self.order_link_map.reserve(additional);
-        // TODO Once have switched over to OrderLinkMap, need to delete these lines vimcmd: .,+2d
-        self.position_map.reserve(additional);
-        self.order.reserve(additional);
     }
 }
 
@@ -358,7 +399,7 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
         //      - I don't give out any other references to a given value
         //      - I have a mutable reference to the HashMap<>, which means no-one else can have any
         //        reference to any part of it.
-        // 
+        //
         // As an aside ... I'm surprised that the borrow checker is smart enough to figure out that
         // the `Iter.next()` method is OK.
         // I guess it figures that out because it can tell that the lifetime given as the returned
@@ -370,7 +411,11 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
             .map(::std::ops::Deref::deref)
             .map(|k|
                  (k, unsafe {
-                     &mut *{self.hidden.underlying_hash.get_mut(k).unwrap() as *mut V}
+                     &mut *{
+                         self.hidden.underlying_hash.get_mut(k)
+                             .expect("IterMut corrupt! Ordered key missing in HashMap")
+                             as *mut V
+                     }
                  }))
     }
 }
@@ -389,7 +434,7 @@ pub struct IntoIter<K, V> {
     underlying: HashMap<Rc<K>, V>,
 }
 
-impl<K, V> Iterator for IntoIter<K, V> 
+impl<K, V> Iterator for IntoIter<K, V>
 where K: ::std::cmp::Eq + ::std::hash::Hash + ::std::fmt::Debug {
     type Item = (K, V);
     fn next(&mut self) -> Option<Self::Item> {
@@ -403,11 +448,11 @@ where K: ::std::cmp::Eq + ::std::hash::Hash + ::std::fmt::Debug {
                 //  the Rc<> struct).
                 // Everything added to the order vector is also added into the map, and they're
                 // removed at the same time too, so the final unwrap() should work too.
-                //
-                // TODO Proper error messages in case my reasoning above is wrong?
                 self.underlying.remove(next_key.borrow() as &K)
-                    .map(|x| (Rc::try_unwrap(next_key).unwrap(), x))
-                    .unwrap()
+                    .map(|x| (Rc::try_unwrap(next_key)
+                                .expect("OrderedDict private Rc<> has outstanding references"),
+                                x))
+                    .expect("IntoIter corrupt! Ordered key missing in HashMap")
             })
     }
 
@@ -511,7 +556,7 @@ mod tests {
         // This should mean that the below function removes all (k, v) such that x != 't', which is
         // the opposite of what happens.
         mydict.retain(
-            |k, _v| { 
+            |k, _v| {
             match k.chars().next() {
                 Some(x) => x == 't',
                 None => false
