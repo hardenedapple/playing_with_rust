@@ -541,36 +541,16 @@ mod tests {
         (mydict, inserted_items)
     }
 
+    fn assert_keys(orig_dict: &OrderedDict<String, usize>, expected: Vec<String>) {
+        let keys_in_order = orig_dict.keys()
+            .map(|x| x.clone())
+            .collect::<Vec<_>>();
+        assert_eq!(keys_in_order, expected);
+    }
+
     #[test]
     fn create_and_check() {
         let (mut mydict, inserted_items) = create_default();
-
-        do_check(&mydict, String::from("Hello world"), 0, 10);
-        do_check(&mydict, String::from("Other test"), 2, 6);
-        do_check(&mydict, String::from("Test string"), 1, 15);
-        do_check(&mydict, String::from("Other test"), 2, 6);
-
-        mydict.insert(String::from("test"), 8);
-        // n.b. I don't really follow this ...
-        // The docs say "remove all pairs (k, v) such that f(&k, &mut v) returns false"
-        // This should mean that the below function removes all (k, v) such that x != 't', which is
-        // the opposite of what happens.
-        mydict.retain(
-            |k, _v| {
-            match k.chars().next() {
-                Some(x) => x == 't',
-                None => false
-            }
-        });
-
-        let keys_in_order = mydict.keys()
-            .map(|x| x.clone())
-            .collect::<Vec<_>>();
-        assert_eq!(keys_in_order,
-            vec![String::from("Hello world"),
-                String::from("Test string"),
-                String::from("Other test"),
-            ]);
 
         let values_in_order = mydict.values()
             .map(|x| *x)
@@ -597,6 +577,69 @@ mod tests {
         for (map_item, check_item) in mydict.into_iter().zip(inserted_items) {
             assert_eq!(map_item, check_item);
         }
+    }
+
+    #[test]
+    fn simple_insert() {
+        let (mydict, _inserted_items) = create_default();
+
+        do_check(&mydict, String::from("Hello world"), 0, 10);
+        do_check(&mydict, String::from("Other test"), 2, 6);
+        do_check(&mydict, String::from("Test string"), 1, 15);
+        do_check(&mydict, String::from("Other test"), 2, 6);
+
+        assert_keys(&mydict,
+            vec![String::from("Hello world"),
+                String::from("Test string"),
+                String::from("Other test"),
+            ]);
+    }
+
+    #[test]
+    fn simple_remove() {
+        let (mut mydict, _inserted_items) = create_default();
+        let remove_key = String::from("Hello world");
+        mydict.remove(&remove_key);
+        let keys_in_order = mydict.keys()
+            .map(|x| x.clone())
+            .collect::<Vec<_>>();
+        assert_eq!(keys_in_order,
+                   vec![String::from("Test string"),
+                   String::from("Other test")]);
+    }
+
+    #[test]
+    fn retain() {
+        // Original test.
+        // I'm keeping it here because I want to check that the way retain works is the same
+        // between my implementation and the standard.
+        // i.e. TODO Once I have everything working ... Ensure that I've gotten the boolean the
+        // right way around.
+        //
+        //
+        // mydict.insert(String::from("test"), 8);
+        // // n.b. I don't really follow this ...
+        // // The docs say "remove all pairs (k, v) such that f(&k, &mut v) returns false"
+        // // This should mean that the below function removes all (k, v) such that x != 't', which is
+        // // the opposite of what happens.
+        // mydict.retain(
+        //     |k, _v| { 
+        //     match k.chars().next() {
+        //         Some(x) => x == 't',
+        //         None => false
+        //     }
+        // });
+        let (mut mydict, _inserted_items) = create_default();
+        mydict.retain(
+            |k, _v| {
+                match k.chars().next() {
+                    Some(x) => x == 'O',
+                    None => false
+                }
+            });
+        assert_keys(&mydict,
+                    vec![String::from("Hello world"),
+                        String::from("Test string")]);
     }
 
     #[test]
