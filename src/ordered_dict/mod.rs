@@ -1,29 +1,15 @@
 use std::collections::{ HashMap, HashSet };
 use std::rc::Rc;
 use std::iter::FromIterator;
-use std::borrow::Borrow;
 
-// Alternate thoughts
-//
-//  Using a Vec<T> to store the order of keys means that removal of keys is O(n).
-//  This could be made O(1) by using a linked list.
-//  The std::collections::LinkedList structure is opaque to the user, which means I can't store
-//  pointers to Nodes in the middle of the list, and hence can't store which node needs removal.
-//
-//  I can see two main alternatives to get O(1) removal of keys.
-//      1) Create my own Linked List structure, so I have access to the internal nodes.
-//      2) Make a sort of linked list inside a hash table.
-//          HashMap<Rc<K>, (Option<Rc<K>>, Option<Rc<K>>))
-//          here the first entry in the tuple would be key for the "previous" entry, and the second
-//          entry in the tuple would be the key for the "next" entry.
-//      Either way, I will need to add in a "head" and "tail" member into the OrderedDict so as to
-//      be able to start the iteration.
-//
-//
-// What about just keeping on using the Vec<T>?
-// Unless removal of entries is a common occurance it shouldn't give too much of a performance
-// impact.
 
+// Thoughts on alternate implementation:
+//  Implement Iterator for OrderLinkMap.
+//  This should have Self::Item of &K
+//  I should then be able to implement Iter, IterMut, and IntoIter in terms of this iterator
+//  instead of reimplementing the logic of following the internal linked list in each of those
+//  iterators.
+//
 pub struct Iter<'a, K: 'a, V: 'a>
 where K: ::std::cmp::Eq + ::std::hash::Hash {
         order_link_map: &'a OrderLinkMap<K>,
@@ -47,7 +33,7 @@ impl<'a, K, V> Iterator for Iter<'a, K, V>
         self.current = match self.current {
             Some(k) => match self.order_link_map.get(k) {
                 Some(map_link) => map_link.next.iter().next(),
-                None => None
+                None => panic!("Iter over ordered links \"current\" points to missing key!"),
             },
             None => self.order_link_map.head.iter().next()
         };
@@ -184,7 +170,7 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
     fn reserve(&mut self, additional: usize) { self.hash.reserve(additional) }
 
     // Don't even bothen with a similar call signature to HashMap<> ... this is a different thing.
-    fn remove(&mut self, k: &K) {
+    fn remove(&mut self, k: &K) -> Option<MapLink<K>> {
         if let Some(x) = self.hash.remove(k)  {
             match x.next {
                 // x.next == None   <=>  k is the tail
@@ -202,13 +188,14 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
                 Some(ref prev_link) => {
                     self.hash.get_mut(prev_link)
                         .expect("E:Remove 2")
-                        .next = x.next
+                        .next = x.next.clone()
                 },
                 None => {
-                    self.head = x.next
+                    self.head = x.next.clone()
                 }
             };
-        };
+            Some(x)
+        } else { None }
     }
 }
 
@@ -375,7 +362,9 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
     }
 }
 
+// TODO make this work with the order_link_map
 pub struct IterMut<'a, K: 'a, V: 'a> {
+    order_link_map: &'a OrderLinkMap<K>,
     order_iter: ::std::slice::Iter<'a, Rc<K>>,
     hidden: IterMutHidden<'a, K, V>,
 }
@@ -418,6 +407,8 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
                      }
                  }))
     }
+
+    // TODO Implement size_hint()
 }
 
 impl<'a, K, V> IntoIterator for &'a mut OrderedDict<K, V>
@@ -429,8 +420,9 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
     }
 }
 
-pub struct IntoIter<K, V> {
-    inner: <Vec<Rc<K>> as IntoIterator>::IntoIter,
+pub struct IntoIter<K, V>
+where K: ::std::cmp::Eq + ::std::hash::Hash {
+    order_link_map: OrderLinkMap<K>,
     underlying: HashMap<Rc<K>, V>,
 }
 
@@ -549,34 +541,15 @@ mod tests {
     }
 
     #[test]
-    fn create_and_check() {
-        let (mut mydict, inserted_items) = create_default();
+    fn iter_values() {
+        let (mydict, inserted_items) = create_default();
 
         let values_in_order = mydict.values()
             .map(|x| *x)
             .collect::<Vec<_>>();
-        assert_eq!(values_in_order, vec![10, 15, 6]);
-
-        let items_in_order = mydict.iter()
-            .map(|(s, u)| (s.clone(), *u))
-            .collect::<Vec<_>>();
-        assert_eq!(items_in_order, inserted_items);
-
-        // Testing IntoIterator for &'a
-        for (map_item, check_item) in (&mydict).into_iter().zip(&inserted_items) {
-            assert_eq!(map_item.0, &check_item.0);
-            assert_eq!(map_item.1, &check_item.1);
-        }
-        // Testing IntoIterator for &'a mut
-        for (map_item, check_item) in (&mut mydict).into_iter().zip(&inserted_items) {
-            assert_eq!(map_item.0, &check_item.0);
-            assert_eq!(map_item.1, &check_item.1);
-        }
-
-        // Testing IntoIterator for moved value
-        for (map_item, check_item) in mydict.into_iter().zip(inserted_items) {
-            assert_eq!(map_item, check_item);
-        }
+        assert_eq!(values_in_order,
+                   inserted_items.into_iter().map(|x| x.1)
+                    .collect::<Vec<_>>());
     }
 
     #[test]
@@ -623,7 +596,7 @@ mod tests {
         // // This should mean that the below function removes all (k, v) such that x != 't', which is
         // // the opposite of what happens.
         // mydict.retain(
-        //     |k, _v| { 
+        //     |k, _v| {
         //     match k.chars().next() {
         //         Some(x) => x == 't',
         //         None => false
@@ -640,6 +613,48 @@ mod tests {
         assert_keys(&mydict,
                     vec![String::from("Hello world"),
                         String::from("Test string")]);
+    }
+
+    #[test]
+    fn iter_ref() {
+        let (mydict, inserted_items) = create_default();
+
+        let items_in_order = mydict.iter()
+            .map(|(s, u)| (s.clone(), *u))
+            .collect::<Vec<_>>();
+        assert_eq!(items_in_order, inserted_items);
+    }
+
+    #[test]
+    fn into_iter() {
+        let (mydict, inserted_items) = create_default();
+
+        // Testing IntoIterator for moved value
+        for (map_item, check_item) in mydict.into_iter().zip(inserted_items) {
+            assert_eq!(map_item, check_item);
+        }
+    }
+
+    #[test]
+    fn iter_mut() {
+        let (mut mydict, inserted_items) = create_default();
+
+        // Testing IntoIterator for &'a mut
+        for (map_item, check_item) in (&mut mydict).into_iter().zip(&inserted_items) {
+            assert_eq!(map_item.0, &check_item.0);
+            assert_eq!(map_item.1, &check_item.1);
+        }
+    }
+
+    #[test]
+    fn into_iter_ref() {
+        let (mydict, inserted_items) = create_default();
+
+        // Testing IntoIterator for &'a
+        for (map_item, check_item) in (&mydict).into_iter().zip(&inserted_items) {
+            assert_eq!(map_item.0, &check_item.0);
+            assert_eq!(map_item.1, &check_item.1);
+        }
     }
 
     #[test]
@@ -675,7 +690,9 @@ mod tests {
     /*
      * TODO
      *      Test ideas:
-     *          All `.get()`, `.insert()`, `.remove()` operations give the same observable
-     *          behaviour as the same ones applied to `HashMap<>`.
+     *          --  All `.get()`, `.insert()`, `.remove()` operations give the same observable
+     *              behaviour as the same ones applied to `HashMap<>`.
+     *          --  After all method calls, the keys in self.underlying_hash and
+     *              self.order_link_map are the same.
      */
 }
