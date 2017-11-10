@@ -91,6 +91,28 @@ struct MapLink<K> {
     prev: Option<Rc<K>>
 }
 
+struct OrderIter<'a, K: 'a> 
+where K: ::std::cmp::Eq + ::std::hash::Hash {
+    current: Option<&'a Rc<K>>,
+    order_link_map: &'a OrderLinkMap<K>,
+}
+
+// TODO I don't know if it's feasible to use this in Iter<> IterMut<> and IntoIter<>
+impl<'a, K> Iterator for OrderIter<'a, K>
+where K: ::std::cmp::Eq + ::std::hash::Hash {
+    type Item = &'a K;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.current = match self.current {
+            Some(k) => match self.order_link_map.get(k) {
+                Some(map_link) => map_link.next.iter().next(),
+                None => panic!("Iter over ordered links \"current\" points to missing key!"),
+            },
+            None => self.order_link_map.head.iter().next()
+        };
+        self.current.map(|x| &**x)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 struct OrderLinkMap<K>
 where K: ::std::cmp::Eq + ::std::hash::Hash {
@@ -145,6 +167,12 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
         self.head = None;
     }
 
+    fn iter(&self) -> OrderIter<K> {
+        OrderIter {
+            current: None,
+            order_link_map: self
+        }
+    }
     // Don't need the same call-signature as HashMap<> ... we're not emulating anything here, just
     // creating something for our very limited use-case.
     fn get(&self, k: &Rc<K>) -> Option<&MapLink<K>> { self.hash.get(k) }
@@ -275,7 +303,7 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
             hidden: IterMutHidden {
                 underlying_hash: &mut self.underlying,
             },
-            order_iter: self.order.iter(),
+            order_iter: self.order_link_map.iter(),
         }
     }
     pub fn values_mut(&mut self) -> ValuesMut<K, V> {
@@ -326,7 +354,8 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
     }
 }
 
-pub struct ValuesMut<'a, K: 'a, V: 'a> {
+pub struct ValuesMut<'a, K: 'a, V: 'a>
+where K: ::std::cmp::Eq + ::std::hash::Hash {
     inner: IterMut<'a, K, V>
 }
 
@@ -362,14 +391,14 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
     }
 }
 
-// TODO make this work with the order_link_map
-pub struct IterMut<'a, K: 'a, V: 'a> {
-    order_link_map: &'a OrderLinkMap<K>,
-    order_iter: ::std::slice::Iter<'a, Rc<K>>,
+pub struct IterMut<'a, K: 'a, V: 'a>
+where K: ::std::cmp::Eq + ::std::hash::Hash {
+    order_iter: OrderIter<'a, K>,
     hidden: IterMutHidden<'a, K, V>,
 }
 
-struct IterMutHidden<'a, K: 'a, V: 'a> {
+struct IterMutHidden<'a, K: 'a, V: 'a>
+where K: ::std::cmp::Eq + ::std::hash::Hash {
     underlying_hash: &'a mut HashMap<Rc<K>, V>,
 }
 
@@ -397,7 +426,6 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
         // structure for the same amount of time, so it doesn't have to know anything else ... that
         // lifetime has already been validated.
         self.order_iter.next()
-            .map(::std::ops::Deref::deref)
             .map(|k|
                  (k, unsafe {
                      &mut *{
@@ -430,25 +458,32 @@ impl<K, V> Iterator for IntoIter<K, V>
 where K: ::std::cmp::Eq + ::std::hash::Hash + ::std::fmt::Debug {
     type Item = (K, V);
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next()
-            .map(|next_key| {
-                // Invariants of the structure mean this should always work.
-                // The Rc<K> is never given out (just references to the underlying K) so
-                // Rc::try_unwrap() should work.
-                //  (any references to the underlying K will have been dropped already, as their
-                //  lifetimes would be limited by some reference to Rc<K>, and we have been given
-                //  the Rc<> struct).
-                // Everything added to the order vector is also added into the map, and they're
-                // removed at the same time too, so the final unwrap() should work too.
-                self.underlying.remove(next_key.borrow() as &K)
-                    .map(|x| (Rc::try_unwrap(next_key)
-                                .expect("OrderedDict private Rc<> has outstanding references"),
-                                x))
-                    .expect("IntoIter corrupt! Ordered key missing in HashMap")
-            })
+        let next_key = match self.order_link_map.head {
+            Some(ref k) =>  k.clone(),
+            // Short circuit here, maybe should add some assert!() statements.
+            // assert_eq!(self.underlying.len(), 0);
+            None => return None,
+        };
+
+        // This should remove both the Rc<> strong count in the order_link_map.hash and the one in
+        // the order_link_map.head.
+        // There should only be a strong reference left in self.underlying and in next_key.
+        self.order_link_map.head = self.order_link_map.remove(&next_key)
+            .expect("IntoIter OrderedLinkMap head was not in OrderedLinkMap hash")
+            .next;
+
+        // Here we remove the strong reference to Rc<k> in self.underlying, before unwrapping our
+        // next_key reference to give the underlying value back to the caller.
+        match self.underlying.remove(&next_key) {
+            Some(v) => Some((Rc::try_unwrap(next_key)
+                             .expect("Failed to unwrap key! There's an existing Rc<> still around"),
+                             v)),
+            None => panic!("IntoIter order contained key not in hash map!"),
+        }
     }
 
-    fn size_hint(&self) -> (usize, Option<usize>) { self.inner.size_hint() }
+    // TODO Implement this.
+    // fn size_hint(&self) -> (usize, Option<usize>) { self.inner.size_hint() }
 }
 
 impl<K, V> IntoIterator for OrderedDict<K, V>
@@ -457,7 +492,7 @@ where K: ::std::cmp::Eq + ::std::hash::Hash + ::std::fmt::Debug {
     type IntoIter = IntoIter<K, V>;
     fn into_iter(self) -> Self::IntoIter {
         IntoIter {
-            inner: self.order.into_iter(),
+            order_link_map: self.order_link_map,
             underlying: self.underlying,
         }
     }
@@ -662,11 +697,16 @@ mod tests {
         // Check that I can change the values in the hash map using the references I get from
         // values_mut()
         let (mut mydict, _inserted_items) = create_default();
+        let mut new_value = 10;
         for value in mydict.values_mut() {
-            *value = 10;
+            *value = new_value;
+            new_value += 1;
         }
-        for value in mydict.values_mut() {
-            assert_eq!(*value, 10);
+        new_value -= mydict.len();
+        // Iterate over values() for the check so that values_mut() isn't checking it's own work.
+        for value in mydict.values() {
+            assert_eq!(*value, new_value);
+            new_value += 1;
         }
     }
 
@@ -684,6 +724,14 @@ mod tests {
         let mut mydict = OrderedDict::new();
         mydict.insert(String::from("Other test"), 6);
         do_check(&mydict, String::from("Other test"), 2, 7);
+    }
+
+    #[test]
+    fn iterate_order_link_map() {
+        let (mydict, inserted_items) = create_default();
+        // TODO Maybe make this a little less ugly.
+        assert_eq!(mydict.order_link_map.iter().map(|x| x.clone()).collect::<Vec<String>>(),
+                inserted_items.iter().map(|x| x.0.clone()).collect::<Vec<String>>());
     }
 
 
