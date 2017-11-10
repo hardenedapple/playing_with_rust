@@ -3,23 +3,22 @@ use std::rc::Rc;
 use std::iter::FromIterator;
 
 
-// Thoughts on alternate implementation:
-//  Implement Iterator for OrderLinkMap.
-//  This should have Self::Item of &K
-//  I should then be able to implement Iter, IterMut, and IntoIter in terms of this iterator
-//  instead of reimplementing the logic of following the internal linked list in each of those
-//  iterators.
-//
 pub struct Iter<'a, K: 'a, V: 'a>
 where K: ::std::cmp::Eq + ::std::hash::Hash {
     order_iter: OrderIter<'a, K>,
     underlying_hash: &'a HashMap<Rc<K>, V>,
 }
 
-// TODO
-//  Things I don't really like:
+// Things I don't really like:
 //      I have to specify that K is Eq and Hash, despite the fact that having it in a HashMap<>
 //      implies this already.
+//      
+//      It actually looks like the compiler is saying "You haven't specified that Iter<K> implies K
+//      is Eq and Hash, but HashMap<K, V> requires this."
+//      Rather than not understanding the transitive relationship it's mentioning the requirement
+//      to me.
+//      I guess this is to avoid confusion when something requires Eq and Hash because somewhere
+//      down the line it puts the values in a HashMap.
 impl<'a, K, V> Iterator for Iter<'a, K, V>
     where K: ::std::cmp::Eq + ::std::hash::Hash {
     type Item = (&'a K, &'a V);
@@ -40,13 +39,13 @@ pub struct OrderedKeys<'a, K: 'a, V: 'a>
     }
 
 impl<'a, K, V> Iterator for OrderedKeys<'a, K, V>
-    where K: ::std::cmp::Eq + ::std::hash::Hash {
-        type Item = &'a K;
-        fn next(&mut self) -> Option<Self::Item> {
-            self.underlying.next().map(|x| x.0)
-        }
-        fn size_hint(&self) -> (usize, Option<usize>) { self.underlying.size_hint() }
+where K: ::std::cmp::Eq + ::std::hash::Hash {
+    type Item = &'a K;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.underlying.next().map(|x| x.0)
     }
+    fn size_hint(&self) -> (usize, Option<usize>) { self.underlying.size_hint() }
+}
 
 pub struct OrderedValues<'a, K: 'a, V: 'a>
     where K: ::std::cmp::Eq + ::std::hash::Hash {
@@ -62,7 +61,22 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
     fn size_hint(&self) -> (usize, Option<usize>) { self.underlying.size_hint() }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ValuesMut<'a, K: 'a, V: 'a>
+where K: ::std::cmp::Eq + ::std::hash::Hash {
+    inner: IterMut<'a, K, V>
+}
+
+impl<'a, K, V> Iterator for ValuesMut<'a, K, V>
+where K: ::std::cmp::Eq + ::std::hash::Hash {
+    type Item = &'a mut V;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next()
+            .map(|(_k, v)| v)
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) { self.inner.size_hint() }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct MapLink<K> {
     next: Option<Rc<K>>,
     prev: Option<Rc<K>>,
@@ -74,7 +88,6 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
     order_link_map: &'a OrderLinkMap<K>,
 }
 
-// TODO Try and use this in IntoIter<>
 impl<'a, K> Iterator for OrderIter<'a, K>
 where K: ::std::cmp::Eq + ::std::hash::Hash {
     type Item = &'a K;
@@ -88,6 +101,7 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
         };
         self.current.map(|x| &**x)
     }
+    // // TODO
     // // I should be able to keep a simple count of how many items I've iterated over, and compare
     // // that to `underlying_hash.len()`.
     // // This would also allow checking an invariant .. that I only run out of keys once I've given
@@ -95,7 +109,51 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
     // fn size_hint(&self) -> (usize, Option<usize>) { self.order_iter.size_hint() }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+struct OrderIntoIter<K>
+where K: ::std::cmp::Eq + ::std::hash::Hash {
+    underlying: OrderLinkMap<K>
+}
+
+/*
+ * n.b. This returns Rc<K> instead of K because its entire purpose is to work with the OrderedDict
+ * IntoIter structure.
+ *
+ * When this structure is calling .next(), it still has a strong reference to the same Rc<K> in the
+ * underlying hash of OrderedDict.
+ *
+ * This means that there is no way for us to return K.
+ *
+ * That structure can't use the OrderIter above because there would be no way for it to obtain a K
+ * value (without cloning) from a reference to a K.
+ */
+impl <K> Iterator for OrderIntoIter<K>
+where K: ::std::cmp::Eq + ::std::hash::Hash {
+    type Item = Rc<K>;
+    fn next(&mut self) -> Option<Self::Item> {
+        let next_key = match self.underlying.head {
+            Some(ref k) =>  k.clone(),
+            // Short circuit here, maybe should add some assert!() statements.
+            // assert_eq!(self.underlying.len(), 0);
+            None => return None,
+        };
+
+        // This should remove both the Rc<> strong count in the underlying.hash and the one in
+        // the underlying.head.
+        // There should only be a strong reference left in the OrderedDict.underlying and in
+        // next_key.
+        self.underlying.head = self.underlying.remove(&next_key)
+            .expect("OrderedLinkMap head was not in OrderedLinkMap hash")
+            .next;
+
+        Some(next_key)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) { 
+        (self.underlying.len(), Some(self.underlying.len()))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct OrderLinkMap<K>
 where K: ::std::cmp::Eq + ::std::hash::Hash {
     head: Option<Rc<K>>,
@@ -143,6 +201,7 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
         }
         self.tail = Some(k);
     }
+
     fn clear(&mut self) {
         self.hash.clear();
         self.tail = None;
@@ -155,6 +214,9 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
             order_link_map: self
         }
     }
+
+    fn len(&self) -> usize { self.hash.len() }
+    fn into_iter(self) -> OrderIntoIter<K> { OrderIntoIter { underlying: self } }
     // Don't need the same call-signature as HashMap<> ... we're not emulating anything here, just
     // creating something for our very limited use-case.
     fn get(&self, k: &Rc<K>) -> Option<&MapLink<K>> { self.hash.get(k) }
@@ -209,7 +271,7 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OrderedDict<K, V>
 where K: ::std::cmp::Eq + ::std::hash::Hash {
     // map of keys to values
@@ -331,21 +393,6 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
     }
 }
 
-pub struct ValuesMut<'a, K: 'a, V: 'a>
-where K: ::std::cmp::Eq + ::std::hash::Hash {
-    inner: IterMut<'a, K, V>
-}
-
-impl<'a, K, V> Iterator for ValuesMut<'a, K, V>
-where K: ::std::cmp::Eq + ::std::hash::Hash {
-    type Item = &'a mut V;
-    fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next()
-            .map(|(_k, v)| v)
-    }
-}
-
-
 // Implementations of traits just taken from the HashMap implementation.
 
 impl<'a, Q, K, V> ::std::ops::Index<&'a Q> for OrderedDict<K, V>
@@ -413,7 +460,7 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
                  }))
     }
 
-    // TODO Implement size_hint()
+    fn size_hint(&self) -> (usize, Option<usize>) { self.order_iter.size_hint() }
 }
 
 impl<'a, K, V> IntoIterator for &'a mut OrderedDict<K, V>
@@ -427,7 +474,7 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
 
 pub struct IntoIter<K, V>
 where K: ::std::cmp::Eq + ::std::hash::Hash {
-    order_link_map: OrderLinkMap<K>,
+    order_iter: OrderIntoIter<K>,
     underlying: HashMap<Rc<K>, V>,
 }
 
@@ -435,19 +482,16 @@ impl<K, V> Iterator for IntoIter<K, V>
 where K: ::std::cmp::Eq + ::std::hash::Hash + ::std::fmt::Debug {
     type Item = (K, V);
     fn next(&mut self) -> Option<Self::Item> {
-        let next_key = match self.order_link_map.head {
-            Some(ref k) =>  k.clone(),
-            // Short circuit here, maybe should add some assert!() statements.
-            // assert_eq!(self.underlying.len(), 0);
-            None => return None,
+        // After self.order_iter.next() is called, part of the specification of that function is
+        // that it should remove all references to the Rc<K> returned inside its structure.
+        // 
+        // From the structure of OrderedDict, we know that this means there are only two strong
+        // references to the Rc<K> left.
+        // One is the `next_key` item that we're holding, the other is in self.underlying.
+        let next_key = match self.order_iter.next() {
+            Some(k) => k,
+            None => { assert_eq!(self.underlying.len(), 0); return None },
         };
-
-        // This should remove both the Rc<> strong count in the order_link_map.hash and the one in
-        // the order_link_map.head.
-        // There should only be a strong reference left in self.underlying and in next_key.
-        self.order_link_map.head = self.order_link_map.remove(&next_key)
-            .expect("IntoIter OrderedLinkMap head was not in OrderedLinkMap hash")
-            .next;
 
         // Here we remove the strong reference to Rc<k> in self.underlying, before unwrapping our
         // next_key reference to give the underlying value back to the caller.
@@ -459,8 +503,7 @@ where K: ::std::cmp::Eq + ::std::hash::Hash + ::std::fmt::Debug {
         }
     }
 
-    // TODO Implement this.
-    // fn size_hint(&self) -> (usize, Option<usize>) { self.inner.size_hint() }
+    fn size_hint(&self) -> (usize, Option<usize>) { self.order_iter.size_hint() }
 }
 
 impl<K, V> IntoIterator for OrderedDict<K, V>
@@ -469,7 +512,7 @@ where K: ::std::cmp::Eq + ::std::hash::Hash + ::std::fmt::Debug {
     type IntoIter = IntoIter<K, V>;
     fn into_iter(self) -> Self::IntoIter {
         IntoIter {
-            order_link_map: self.order_link_map,
+            order_iter: self.order_link_map.into_iter(),
             underlying: self.underlying,
         }
     }
