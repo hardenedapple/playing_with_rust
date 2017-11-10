@@ -12,9 +12,8 @@ use std::iter::FromIterator;
 //
 pub struct Iter<'a, K: 'a, V: 'a>
 where K: ::std::cmp::Eq + ::std::hash::Hash {
-        order_link_map: &'a OrderLinkMap<K>,
-        underlying_hash: &'a HashMap<Rc<K>, V>,
-        current: Option<&'a Rc<K>>,
+    order_iter: OrderIter<'a, K>,
+    underlying_hash: &'a HashMap<Rc<K>, V>,
 }
 
 // TODO
@@ -28,29 +27,11 @@ impl<'a, K, V> Iterator for Iter<'a, K, V>
         // Failing on `expect()` should never happen, all elements in the `order_link_map` should
         // be in `underlying_hash`, this is an invariant by design.
         // If something goes wrong here we *should* panic.
-
-        // Update the "current" pointer to the next one in order.
-        self.current = match self.current {
-            Some(k) => match self.order_link_map.get(k) {
-                Some(map_link) => map_link.next.iter().next(),
-                None => panic!("Iter over ordered links \"current\" points to missing key!"),
-            },
-            None => self.order_link_map.head.iter().next()
-        };
-
-        // Fetch that "current" pointer.
-        match self.current {
-            Some(k) => Some((&**k, self.underlying_hash.get(k)
-                             .expect("OrderedDict corrupt! Ordered key missing in HashMap"))),
-            None => None
-        }
+        self.order_iter.next()
+            .map(|k| (k, self.underlying_hash.get(k)
+                             .expect("OrderedDict corrupt! Ordered key missing in HashMap")))
     }
-    // // TODO implement this ...
-    // // I should be able to keep a simple count of how many items I've iterated over, and compare
-    // // that to `underlying_hash.len()`.
-    // // This would also allow checking an invariant .. that I only run out of keys once I've given
-    // // out a reference to all the keys in `underlying_hash`.
-    // fn size_hint(&self) -> (usize, Option<usize>) { self.order_iter.size_hint() }
+    fn size_hint(&self) -> (usize, Option<usize>) { self.order_iter.size_hint() }
 }
 
 pub struct OrderedKeys<'a, K: 'a, V: 'a>
@@ -73,22 +54,18 @@ pub struct OrderedValues<'a, K: 'a, V: 'a>
     }
 
 impl<'a, K, V> Iterator for OrderedValues<'a, K, V>
-    where K: ::std::cmp::Eq + ::std::hash::Hash {
-        type Item = &'a V;
-        fn next(&mut self) -> Option<Self::Item> {
-            self.underlying.next().map(|x| x.1)
-        }
-        fn size_hint(&self) -> (usize, Option<usize>) { self.underlying.size_hint() }
+where K: ::std::cmp::Eq + ::std::hash::Hash {
+    type Item = &'a V;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.underlying.next().map(|x| x.1)
     }
-
-// TODO
-//      Allow deletion of elements in the hash map (i.e. use LinkedList<>)
-//      Flesh out the interface by adding IntoIter implementations etc.
+    fn size_hint(&self) -> (usize, Option<usize>) { self.underlying.size_hint() }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 struct MapLink<K> {
     next: Option<Rc<K>>,
-    prev: Option<Rc<K>>
+    prev: Option<Rc<K>>,
 }
 
 struct OrderIter<'a, K: 'a> 
@@ -97,7 +74,7 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
     order_link_map: &'a OrderLinkMap<K>,
 }
 
-// TODO I don't know if it's feasible to use this in Iter<> IterMut<> and IntoIter<>
+// TODO Try and use this in IntoIter<>
 impl<'a, K> Iterator for OrderIter<'a, K>
 where K: ::std::cmp::Eq + ::std::hash::Hash {
     type Item = &'a K;
@@ -111,6 +88,11 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
         };
         self.current.map(|x| &**x)
     }
+    // // I should be able to keep a simple count of how many items I've iterated over, and compare
+    // // that to `underlying_hash.len()`.
+    // // This would also allow checking an invariant .. that I only run out of keys once I've given
+    // // out a reference to all the keys in `underlying_hash`.
+    // fn size_hint(&self) -> (usize, Option<usize>) { self.order_iter.size_hint() }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -234,7 +216,6 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
     underlying: HashMap<Rc<K>, V>,
     // map of keys to positions in the vector
     order_link_map: OrderLinkMap<K>,
-    position_map: HashMap<Rc<K>, usize>,
     // TODO Implement my own doubly linked list.
     // That way I can rely on the implementation, and store Shared<T> pointers in the rest of the
     // OrderedDict structure.
@@ -251,7 +232,6 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
     // I can't use the provided LinkedList structure as the structure of the nodes is an
     // implementation detail, and there's no supported way to say "remove the element I have a
     // reference to".
-    order: Vec<Rc<K>>,
 }
 
 impl<K, V> OrderedDict<K, V>
@@ -260,8 +240,6 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
         OrderedDict {
             underlying: HashMap::new(),
             order_link_map: OrderLinkMap::new(),
-            position_map: HashMap::new(),
-            order: Vec::new(),
         }
     }
     pub fn insert(&mut self, k: K, v: V) -> Option<V> {
@@ -281,9 +259,8 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
     }
     pub fn iter(&self) -> Iter<K, V> {
         Iter {
-            order_link_map: &self.order_link_map,
+            order_iter: self.order_link_map.iter(),
             underlying_hash: &self.underlying,
-            current: None,
         }
     }
     pub fn remove(&mut self, k: &K) -> Option<V> {
@@ -478,7 +455,7 @@ where K: ::std::cmp::Eq + ::std::hash::Hash + ::std::fmt::Debug {
             Some(v) => Some((Rc::try_unwrap(next_key)
                              .expect("Failed to unwrap key! There's an existing Rc<> still around"),
                              v)),
-            None => panic!("IntoIter order contained key not in hash map!"),
+            None => panic!("IntoIter order_iter contained key not in hash map!"),
         }
     }
 
