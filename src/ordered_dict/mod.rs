@@ -2,6 +2,18 @@ use std::collections::{ HashMap, HashSet };
 use std::rc::Rc;
 use std::iter::FromIterator;
 
+// TODO
+//      Restructure the file
+//          Put some things in modules,
+//          Add comment block markers to distinguish parts of the code that belong together.
+//          Put some modules into other files.
+//      More tests
+//          Test for the size_hint() of all the different iterators.
+//          Add some randomised tests to check the behaviour against that of HashMap<>.
+//          Include tests of the ordering in the randomised tests.
+//          Randomised tests, checking that the ordering and underlying hash match.
+//      Finish Implementation
+//          I still have to implement drain(&mut self) and entry(&mut self).
 
 pub struct Iter<'a, K: 'a, V: 'a>
 where K: ::std::cmp::Eq + ::std::hash::Hash {
@@ -82,10 +94,25 @@ struct MapLink<K> {
     prev: Option<Rc<K>>,
 }
 
+// NOTE I believe the only way to ensure that this is never instantiated with an incorrect `count`
+// is to just not make it public.
+// i.e. there is no way to compiler enforce against my errors in that instance.
 struct OrderIter<'a, K: 'a> 
 where K: ::std::cmp::Eq + ::std::hash::Hash {
     current: Option<&'a Rc<K>>,
     order_link_map: &'a OrderLinkMap<K>,
+    count: usize,
+}
+
+impl<'a, K> OrderIter<'a, K>
+where K: ::std::cmp::Eq + ::std::hash::Hash {
+    fn new(link_map: &'a OrderLinkMap<K>) -> Self {
+        OrderIter {
+            current: None,
+            order_link_map: link_map,
+            count: link_map.len(),
+        }
+    }
 }
 
 impl<'a, K> Iterator for OrderIter<'a, K>
@@ -99,14 +126,12 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
             },
             None => self.order_link_map.head.iter().next()
         };
-        self.current.map(|x| &**x)
+        match self.current {
+            Some(k) => { self.count -= 1; Some(&**k) },
+            None => { assert_eq!(self.count, 0); None },
+        }
     }
-    // // TODO
-    // // I should be able to keep a simple count of how many items I've iterated over, and compare
-    // // that to `underlying_hash.len()`.
-    // // This would also allow checking an invariant .. that I only run out of keys once I've given
-    // // out a reference to all the keys in `underlying_hash`.
-    // fn size_hint(&self) -> (usize, Option<usize>) { self.order_iter.size_hint() }
+    fn size_hint(&self) -> (usize, Option<usize>) { (self.count, Some(self.count)) }
 }
 
 struct OrderIntoIter<K>
@@ -208,13 +233,7 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
         self.head = None;
     }
 
-    fn iter(&self) -> OrderIter<K> {
-        OrderIter {
-            current: None,
-            order_link_map: self
-        }
-    }
-
+    fn iter(&self) -> OrderIter<K> { OrderIter::new(self) }
     fn len(&self) -> usize { self.hash.len() }
     fn into_iter(self) -> OrderIntoIter<K> { OrderIntoIter { underlying: self } }
     // Don't need the same call-signature as HashMap<> ... we're not emulating anything here, just
@@ -276,24 +295,8 @@ pub struct OrderedDict<K, V>
 where K: ::std::cmp::Eq + ::std::hash::Hash {
     // map of keys to values
     underlying: HashMap<Rc<K>, V>,
-    // map of keys to positions in the vector
+    // Structure containing the order of keys inserted.
     order_link_map: OrderLinkMap<K>,
-    // TODO Implement my own doubly linked list.
-    // That way I can rely on the implementation, and store Shared<T> pointers in the rest of the
-    // OrderedDict structure.
-    // When storing Shared<T> pointers I can make remove() O(1)
-    //  This would be done in the same way as the reference python implementation of OrderedDict.
-    //  That class stores
-    //      1) an underlying dictionary of keys and values.
-    //      2) a map of keys to LinkedList nodes
-    //      3) a linked list of elements
-    // When removing a key, we use the map of keys to nodes in order to find the node to remove in
-    // O(1) time.
-    //
-    // At the moment I use Vec<T>, which means the removal is O(n).
-    // I can't use the provided LinkedList structure as the structure of the nodes is an
-    // implementation detail, and there's no supported way to say "remove the element I have a
-    // reference to".
 }
 
 impl<K, V> OrderedDict<K, V>
