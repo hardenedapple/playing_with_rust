@@ -1,6 +1,12 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
+/*
+ * TODO
+ *  Maybe I should rename things to focus on the interpretation of this structure as a LinkedList
+ *  with random access rather than a HashMap with links.
+ */
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MapLink<K> {
     next: Option<Rc<K>>,
@@ -50,11 +56,6 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
     fn size_hint(&self) -> (usize, Option<usize>) { (self.count, Some(self.count)) }
 }
 
-pub struct OrderIntoIter<K>
-where K: ::std::cmp::Eq + ::std::hash::Hash {
-    underlying: OrderLinkMap<K>
-}
-
 /*
  * n.b. This returns Rc<K> instead of K because its entire purpose is to work with the OrderedDict
  * IntoIter structure.
@@ -67,6 +68,11 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
  * That structure can't use the OrderIter above because there would be no way for it to obtain a K
  * value (without cloning) from a reference to a K.
  */
+pub struct OrderIntoIter<K>
+where K: ::std::cmp::Eq + ::std::hash::Hash {
+    underlying: OrderLinkMap<K>
+}
+
 impl <K> Iterator for OrderIntoIter<K>
 where K: ::std::cmp::Eq + ::std::hash::Hash {
     type Item = Rc<K>;
