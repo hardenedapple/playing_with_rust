@@ -195,18 +195,13 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
 
 impl<K, V> OrderedDict<K, V>
 where K: ::std::cmp::Eq + ::std::hash::Hash {
-    pub fn new() -> OrderedDict<K, V> {
-        OrderedDict {
-            underlying: HashMap::new(),
-            order_link_map: OrderLinkMap::new(),
-        }
-    }
+    pub fn new() -> OrderedDict<K, V> { Default::default() }
     pub fn insert(&mut self, k: K, v: V) -> Option<V> {
         let ptr = Rc::new(k);
-        match self.underlying.insert(ptr.clone(), v) {
+        match self.underlying.insert(Rc::clone(&ptr), v) {
             Some(v) => Some(v),
             None => {
-                self.order_link_map.insert(ptr.clone());
+                self.order_link_map.insert(Rc::clone(&ptr));
                 None
             }
         }
@@ -266,7 +261,7 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
         {
             let wrapped_closure = |k: &Rc<K>, v: &mut V| {
                 if f(&*k, v) {
-                    keys_to_remove.insert(k.clone());
+                    keys_to_remove.insert(Rc::clone(k));
                     true
                 }
                 else { false }
@@ -284,6 +279,23 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
 
 //////   Trait Implementations //////
 // Mainly just taken from the HashMap implementation.
+
+/*
+ * NOTE:
+ *      It's reasonably interesting that using derive(Default) works until you try and use
+ *      Default::default().
+ *      At that point rustc complains that Default isn't implemented for K or V, even though it's
+ *      implemented for HashMap<K, V> and OrderLinkMap<K> whether implemented for K and V or not.
+ */
+impl<K, V> ::std::default::Default for OrderedDict<K, V>
+where K: ::std::cmp::Eq + ::std::hash::Hash {
+    fn default() -> Self {
+        OrderedDict {
+            underlying: Default::default(),
+            order_link_map: Default::default(),
+        }
+    }
+}
 
 impl<'a, Q, K, V> ::std::ops::Index<&'a Q> for OrderedDict<K, V>
 where Rc<K>: ::std::borrow::Borrow<Q>,

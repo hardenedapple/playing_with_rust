@@ -34,7 +34,7 @@ pub struct KnapsackSolution {
     pub ks_items: Vec<Item>,
 }
 
-fn vector_same_set<T: PartialEq>(left: &Vec<T>, right: &Vec<T>)
+fn vector_same_set<T: PartialEq>(left: &[T], right: &[T])
     -> bool {
 
     if left.len() != right.len() {
@@ -62,7 +62,7 @@ fn vector_same_set<T: PartialEq>(left: &Vec<T>, right: &Vec<T>)
     // #[cfg(test)]
     // assert!(marker.iter().all(| value: &u32 | { *value == 1 }));
 
-    return true;
+    true
 }
 
 /* Allow access to vector_same_set() from inside the test module. */
@@ -97,7 +97,7 @@ impl PartialEq for KnapsackSolution {
 
 impl Eq for KnapsackSolution {}
 
-/// Returns an optimal solution to the KnapsackProblem
+/// Returns an optimal solution to the `KnapsackProblem`
 ///
 /// ```
 /// use rust_algorithms::knapsack_problem::{best_knapsack, KnapsackProblem, KnapsackSolution, Item};

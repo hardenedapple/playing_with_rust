@@ -35,7 +35,7 @@ fn move_buffer_here<T>(sentance: &mut [u8], buffer: T, index: usize)
 
 
 pub fn string_swap(sentance: &mut [u8]) {
-	if sentance.len() == 0 { return; }
+	if sentance.is_empty() { return; }
 
 	let mut left_word_buffer: Vec<u8> = Vec::new();
 	let mut right_word_buffer: Vec<u8> = Vec::new();
@@ -100,7 +100,7 @@ pub fn string_swap(sentance: &mut [u8]) {
 
 
 pub fn inplace_string_swap(sentance: &mut [u8]) {
-	if sentance.len() == 0 { return; }
+	if sentance.is_empty() { return; }
 
 	let (mut left_index, mut right_index): (usize, usize) = (0, sentance.len() - 1);
 	let (mut prev_left_index, mut prev_right_index) = (left_index, right_index + 1);

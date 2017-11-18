@@ -19,7 +19,7 @@ pub struct MapLink<K> {
 // namespace outside the OrderLinkMap, which makes things more ugly than it's worth making them.
 // (at least I think that way until I want to add something later on and I do it without ::new()
 // and incorrectly).
-pub struct OrderIter<'a, K: 'a> 
+pub struct OrderIter<'a, K: 'a>
 where K: ::std::cmp::Eq + ::std::hash::Hash {
     current: Option<&'a Rc<K>>,
     order_link_map: &'a OrderLinkMap<K>,
@@ -78,7 +78,7 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
     type Item = Rc<K>;
     fn next(&mut self) -> Option<Self::Item> {
         let next_key = match self.underlying.head {
-            Some(ref k) =>  k.clone(),
+            Some(ref k) =>  Rc::clone(k),
             // Short circuit here, maybe should add some assert!() statements.
             // assert_eq!(self.underlying.len(), 0);
             None => return None,
@@ -95,7 +95,7 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
         Some(next_key)
     }
 
-    fn size_hint(&self) -> (usize, Option<usize>) { 
+    fn size_hint(&self) -> (usize, Option<usize>) {
         (self.underlying.len(), Some(self.underlying.len()))
     }
 }
@@ -108,15 +108,26 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
     hash: HashMap<Rc<K>, MapLink<K>>,
 }
 
-impl<K> OrderLinkMap<K>
+/*
+ * NOTE:
+ *      It's reasonably interesting that using derive(Default) works until you try and use
+ *      Default::default().
+ *      At that point rustc complains that Default isn't implemented for K, even though it's
+ *      implemented for HashMap<K, V> and Option<Rc<K>> whether implemented for K or not.
+ */
+impl<K> ::std::default::Default for OrderLinkMap<K>
 where K: ::std::cmp::Eq + ::std::hash::Hash {
-    pub fn new() -> OrderLinkMap<K> {
+    fn default() -> Self {
         OrderLinkMap {
-            head: None,
-            tail: None,
-            hash: HashMap::new(),
+            head: Default::default(),
+            tail: Default::default(),
+            hash: Default::default(),
         }
     }
+}
+
+impl<K> OrderLinkMap<K>
+where K: ::std::cmp::Eq + ::std::hash::Hash {
     // We check whether the entry already exists in the link map for correctness.
     // The fact that we don't insert anything if the entry already exists is never actually used.
     // It's simply something that makes sense for this data structure.
@@ -128,19 +139,19 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
             Some(ref x) => {
                 self.hash.get_mut(x)
                     .expect("OrderLinkMap corrupt! self.tail points to a missing key.")
-                    .next = Some(k.clone());
+                    .next = Some(Rc::clone(&k));
 
-                self.hash.insert(k.clone(), MapLink {
+                self.hash.insert(Rc::clone(&k), MapLink {
                     next: None,
-                    prev: Some(x.clone()),
+                    prev: Some(Rc::clone(x)),
                 });
 
                 assert!(self.head.is_some());
             },
             None => {
                 assert!(self.head.is_none());
-                self.head = Some(k.clone());
-                self.hash.insert(k.clone(), MapLink {
+                self.head = Some(Rc::clone(&k));
+                self.hash.insert(Rc::clone(&k), MapLink {
                     next: None,
                     prev: None
                 });
@@ -157,7 +168,6 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
 
     pub fn iter(&self) -> OrderIter<K> { OrderIter::new(self) }
     pub fn len(&self) -> usize { self.hash.len() }
-    pub fn into_iter(self) -> OrderIntoIter<K> { OrderIntoIter { underlying: self } }
     // Don't need the same call-signature as HashMap<> ... we're not emulating anything here, just
     // creating something for our very limited use-case.
     pub fn get(&self, k: &Rc<K>) -> Option<&MapLink<K>> { self.hash.get(k) }
@@ -172,10 +182,10 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
                 if f(k) {
                     None
                 } else {
-                    Some(k.clone())
+                    Some(Rc::clone(k))
                 })
             .collect::<Vec<_>>();
-        for key in keys_to_remove.iter() {
+        for key in &keys_to_remove {
             self.remove(&*key);
         }
     }
@@ -210,4 +220,11 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
             Some(x)
         } else { None }
     }
+}
+
+impl<K> IntoIterator for OrderLinkMap<K>
+where K: ::std::cmp::Eq + ::std::hash::Hash {
+    type Item = Rc<K>;
+    type IntoIter = OrderIntoIter<K>;
+    fn into_iter(self) -> Self::IntoIter { OrderIntoIter { underlying: self } }
 }
