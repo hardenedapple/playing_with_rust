@@ -265,11 +265,11 @@ where K: ::std::cmp::Eq + ::std::hash::Hash {
         let mut keys_to_remove: HashSet<Rc<K>> = HashSet::new();
         {
             let wrapped_closure = |k: &Rc<K>, v: &mut V| {
-                if f(&*k, v) { false }
-                else {
+                if f(&*k, v) {
                     keys_to_remove.insert(k.clone());
                     true
                 }
+                else { false }
             };
             self.underlying.retain(wrapped_closure);
         }
