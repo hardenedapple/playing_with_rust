@@ -16,6 +16,12 @@ mod tests;
 //          Randomised tests, checking that the ordering and underlying hash match.
 //      Finish Implementation
 //          I still have to implement drain(&mut self) and entry(&mut self).
+//      Add extra functions
+//          I think unordered_iter() method would be nice to just ignore the order and have a
+//          faster iteration through all elements.
+//              This could be implemented by simply returning the underlying hash maps .iter()
+//          I would like a .next_key(k) and .prev_key(k) methods.
+//          Similarly, it would be nice to have .iter_from(k) and .iter_back_from(k) methods.
 //      Add Documentation
 //          I should really document each of the structures, but seeing as the documentation is
 //          usually "see HashMap<>, but if this is an iterator it goes in order of inserted keys"
